@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GeoBoost UK | Dynamic Territory Optimizer</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0b0b0c;
+    --panel:#111114;
+    --panel2:#17181b;
+    --text:#eaeaf0;
+    --muted:#9da3af;
+    --accent:#ffd166;
+    --accent2:#8ab4ff;
+    --success:#4ade80;
+    --err:#f87171;
+  }
+
+  *{box-sizing:border-box}
+
+  html,body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:var(--bg);
+    color:var(--text);
+    font-family:Inter,system-ui,Arial,sans-serif;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:380px 1fr;
+    height:100%;
+    width:100%;
+  }
+
+  aside{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border-right:1px solid #1f2126;
+    padding:12px;
+    overflow-y:auto;
+    height:100%;
+  }
+
+  main{
+    position:relative;
+    height:100%;
+    width:100%;
+    background:#d8eef5;
+  }
+
+  #map{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    background:#d8eef5;
+  }
+
+  h1{
+    font-size:16px;
+    margin:0 0 4px;
+    color:var(--accent);
+  }
+
+  .sub{
+    font-size:11px;
+    color:var(--muted);
+    margin-bottom:10px;
+  }
+
+  .card{
+    background:#0f1013;
+    border:1px solid #23242a;
+    border-radius:12px;
+    padding:10px;
+    margin-bottom:10px;
+    box-shadow:0 4px 12px rgba(0,0,0,.2);
+  }
+
+  label{
+    font-size:11px;
+    color:var(--muted);
+    display:block;
+    margin-bottom:4px;
+    font-weight:700;
+  }
+
+  input,select,button{
+    width:100%;
+    padding:8px;
+    border-radius:6px;
+    border:1px solid #2a2c34;
+    background:#121318;
+    color:var(--text);
+    font-size:11px;
+  }
+
+  select[multiple]{
+    height:120px;
+  }
+
+  button{
+    cursor:pointer;
+    border:none;
+    font-weight:700;
+  }
+
+  button:hover{
+    opacity:.85;
+  }
+
+  button:disabled{
+    opacity:.35;
+    cursor:not-allowed;
+  }
+
+  button.primary{
+    background:linear-gradient(135deg,var(--accent),#ffb703);
+    color:#111;
+  }
+
+  button.ghost{
+    background:#1b1c21;
+    color:#ccc;
+    border:1px solid #2a2c34;
+  }
+
+  button.action{
+    background:#1f2937;
+    color:var(--accent2);
+    border:1px solid var(--accent2);
+  }
+
+  .row{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-bottom:6px;
+  }
+
+  .row>*{
+    flex:1;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+  }
+
+  .status{
+    font-size:11px;
+    padding:8px;
+    border-radius:6px;
+    margin-bottom:10px;
+    background:#1f2937;
+    border:1px solid #374151;
+    color:#a5f3fc;
+    line-height:1.4;
+  }
+
+  .status.ok{
+    border-color:#059669;
+    color:#6ee7b7;
+    background:#064e3b;
+  }
+
+  .status.err{
+    border-color:#ef4444;
+    color:#fca5a5;
+    background:#450a0a;
+  }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px;
+    margin-top:8px;
+  }
+
+  .legend .item{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    background:#14151a;
+    border:1px solid #2a2c34;
+    border-radius:99px;
+    padding:3px 8px;
+    font-size:10px;
+  }
+
+  .swatch{
+    width:10px;
+    height:10px;
+    border-radius:2px;
+  }
+
+  .small{
+    font-size:10px;
+    color:#888;
+    margin-top:4px;
+  }
+
+  .table-wrap{
+    max-height:260px;
+    overflow:auto;
+    border:1px solid #2a2c34;
+    border-radius:8px;
+    margin-top:8px;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:10px;
+    color:#eaeaf0;
+  }
+
+  th,td{
+    padding:6px 8px;
+    border-bottom:1px solid #2a2c34;
+    white-space:nowrap;
+    text-align:left;
+  }
+
+  th{
+    background:#1d1f25;
+    position:sticky;
+    top:0;
+    color:var(--muted);
+    z-index:1;
+  }
+
+  .leaflet-container{
+    background:#d8eef5;
+  }
+
+  .city-marker{
+    pointer-events:none;
+  }
+
+  .city-label{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    transform:translate(-50%,-50%);
+    white-space:nowrap;
+    font-size:12px;
+    font-weight:800;
+    color:#111827;
+    text-shadow:
+      -1px -1px 0 #fff,
+       1px -1px 0 #fff,
+      -1px  1px 0 #fff,
+       1px  1px 0 #fff,
+       0 2px 4px rgba(255,255,255,.85);
+  }
+
+  .city-dot{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:#111827;
+    border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.65);
+    flex:0 0 auto;
+  }
+
+  /* ── NEW: KPI grid, lookup result, driver line, recommendation box ── */
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+    margin:8px 0;
+  }
+
+  .kpi-card{
+    background:#14151a;
+    border:1px solid #2a2c34;
+    border-radius:8px;
+    padding:8px;
+  }
+
+  .kpi-label{
+    font-size:9px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+
+  .kpi-value{
+    font-size:18px;
+    font-weight:800;
+    color:var(--accent);
+    margin-top:2px;
+  }
+
+  .lookup-result{
+    font-size:10px;
+    color:#d1d5db;
+    background:#14151a;
+    border:1px solid #2a2c34;
+    border-radius:8px;
+    padding:8px;
+    margin-top:8px;
+    line-height:1.45;
+  }
+
+  .lookup-result b{
+    color:#fff;
+  }
+
+  .driver-line{
+    max-width:280px;
+    white-space:normal;
+    line-height:1.35;
+    color:#d1d5db;
+  }
+
+  .recommendation-box{
+    background:#101827;
+    border:1px solid #34517f;
+    color:#bfdbfe;
+    border-radius:8px;
+    padding:8px;
+    margin-top:8px;
+    font-size:10px;
+    line-height:1.4;
+  }
+
+
+
+  /* ─────────────────────────────────────────────────────────────
+     GEOBOOST PRODUCTION EXTENSIONS: three-page NL territory suite
+     ───────────────────────────────────────────────────────────── */
+  .page-tabs{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:6px;
+    margin:10px 0;
+  }
+  .page-tabs button{
+    text-align:left;
+    background:#15161b;
+    border:1px solid #2a2c34;
+    color:#d1d5db;
+    border-radius:10px;
+    padding:9px 10px;
+  }
+  .page-tabs button.active{
+    background:linear-gradient(135deg,#ffd166,#ffb703);
+    color:#111;
+    box-shadow:0 8px 24px rgba(255,209,102,.18);
+  }
+  .page{display:none;}
+  .page.active{display:block;}
+  .module-title{
+    font-size:12px;
+    color:#fff;
+    font-weight:800;
+    margin:4px 0 8px;
+  }
+  .pill-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;}
+  .pill{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:4px 8px;border-radius:99px;
+    background:#15161b;border:1px solid #2a2c34;
+    color:#d1d5db;font-size:10px;
+  }
+  .pill.good{border-color:#166534;color:#86efac;background:#052e16;}
+  .pill.warn{border-color:#854d0e;color:#fde68a;background:#422006;}
+  .pill.bad{border-color:#991b1b;color:#fecaca;background:#450a0a;}
+  .scenario-table td,.scenario-table th{white-space:normal;vertical-align:top;}
+  .bar-shell{height:8px;background:#111827;border-radius:999px;overflow:hidden;margin-top:4px;border:1px solid #263244;}
+  .bar-fill{height:100%;background:linear-gradient(90deg,#4ade80,#facc15,#f87171);width:0%;}
+  .mini-card{
+    background:#14151a;border:1px solid #2a2c34;border-radius:10px;padding:8px;margin-bottom:6px;
+  }
+  .mini-card b{color:#fff;}
+  .slider-line{display:grid;grid-template-columns:110px 1fr 40px;gap:6px;align-items:center;margin:6px 0;}
+  .slider-line input{padding:0;}
+  .score-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;background:#9ca3af;}
+  .score-dot.high{background:#4ade80;}.score-dot.mid{background:#facc15;}.score-dot.low{background:#f87171;}
+  .explain{font-size:10px;line-height:1.45;color:#d1d5db;}
+  .audit-list{font-size:10px;line-height:1.45;color:#cbd5e1;}
+  .audit-list li{margin-bottom:5px;}
+  .sticky-actions{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(15,16,19,0),#0f1013 20%);padding-top:8px;}
+  .export-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}
+
+
+
+  /* ─────────────────────────────────────────────────────────────
+     WORKLOAD ENGINE v1: frequency-driven BDR sizing controls
+     ───────────────────────────────────────────────────────────── */
+  .workload-engine-panel{
+    background:#10131a;
+    border:1px solid #314158;
+    border-radius:10px;
+    padding:9px;
+    margin:8px 0;
+  }
+  .freq-grid{
+    display:grid;
+    grid-template-columns:repeat(5, minmax(0,1fr));
+    gap:5px;
+    margin-top:6px;
+  }
+  .freq-grid label{
+    margin:0;
+  }
+  .freq-cell{
+    background:#14151a;
+    border:1px solid #2a2c34;
+    border-radius:7px;
+    padding:5px;
+  }
+  .freq-cell span{
+    display:block;
+    font-size:9px;
+    color:#9ca3af;
+    font-weight:800;
+    margin-bottom:3px;
+  }
+  .freq-cell input{
+    padding:5px;
+    text-align:center;
+  }
+
+  .distance-cell{line-height:1.35;}
+  .distance-cell b{color:#fff;}
+
+  .engine-pill{
+    display:inline-block;
+    padding:3px 7px;
+    border-radius:99px;
+    border:1px solid #34517f;
+    background:#111827;
+    color:#bfdbfe;
+    font-size:9px;
+    margin:2px 3px 2px 0;
+  }
+  .validation-box{
+    background:#111827;
+    border:1px solid #374151;
+    border-radius:8px;
+    padding:8px;
+    margin-top:8px;
+    font-size:10px;
+    line-height:1.45;
+    color:#d1d5db;
+  }
+
+  #powerBIWorkloadSettings input:disabled{opacity:.85;color:#fde68a;background:#17181b;cursor:not-allowed;}
+  #capacityEquationFinal{border-color:#34517f;color:#dbeafe;}
+  #powerBIWorkloadSettings [data-final-capacity]{font-size:10px;}
+
+
+
+  /* Compact, light date picker controls */
+  .gb-date-picker{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 30px;
+    gap:4px;
+    align-items:center;
+    min-width:0;
+  }
+  .gb-date-picker input[type="date"]{
+    min-width:0;
+    height:32px;
+    padding:5px 7px;
+    background:#f8fafc;
+    color:#111827;
+    border:1px solid #cbd5e1;
+    color-scheme:light;
+    font-size:10px;
+  }
+  .gb-date-picker input[type="date"]::-webkit-calendar-picker-indicator{
+    opacity:.75;
+    cursor:pointer;
+  }
+  .gb-date-picker-button{
+    width:30px !important;
+    min-width:30px !important;
+    height:30px !important;
+    padding:5px !important;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid #cbd5e1 !important;
+    border-radius:6px !important;
+    background:#f8fafc !important;
+    color:#1f2937 !important;
+  }
+  .gb-date-picker-button svg{
+    width:16px;
+    height:16px;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:1.8;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+  }
+  .map-layer-toggle{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin-top:7px;
+    padding:7px 8px;
+    border:1px solid #334155;
+    border-radius:8px;
+    background:#111827;
+    color:#dbeafe;
+    font-size:10px;
+    font-weight:700;
+  }
+  .map-layer-toggle input{width:auto;margin:0;}
+  .poc-dot-tooltip{font-size:11px;line-height:1.35;}
+
+</style>
+
+<style id="gb-clean-final-style">
+  .qc-good{border-color:#166534!important;color:#bbf7d0!important;background:#052e16!important}
+  .qc-warn{border-color:#854d0e!important;color:#fde68a!important;background:#422006!important}
+  .gb-mixed{font-size:9px;color:#fde68a;margin-top:3px}
+  #mapModeNote{border-color:#34517f;color:#bfdbfe;background:#101827}
+  #selectionCount{font-weight:800;color:#ffd166}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+</head>
+
+<body>
+<div class="app">
+  <aside>
+    <h1>GeoBoost UK | Dynamic Territory Optimizer</h1>
+    <div id="status" class="status">Loading Leaflet...</div>
+
+    
+    <div class="page-tabs" id="geoBoostPageTabs">
+      <button class="active" data-page="page-asis">AS IS</button>
+      <button data-page="page-simulator">Scenario Simulator</button>
+    </div>
+    <section id="page-asis" class="page active">
+<div class="card">
+      <label>Map Shapes</label>
+      <input id="shapeFile" type="file" accept=".json,.geojson" />
+
+      <label style="margin-top:8px">Postal Code Property</label>
+      <select id="propKeySelect"></select>
+    </div>
+
+    <div class="card">
+      <label>Data & Filters</label>
+      <input id="bdrCsv" type="file" accept=".csv,.tsv,.xlsx,.xls" />
+
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label>PC Col</label>
+          <select id="colCode"></select>
+        </div>
+        <div>
+          <label>BDR Col</label>
+          <select id="colBDR"></select>
+        </div>
+      </div>
+
+      <!-- NEW: Zip / New POC Lookup -->
+      <label style="margin-top:8px">New POC / Zip Lookup</label>
+      <div class="grid">
+        <input id="zipLookup" placeholder="Enter zip/postcode" />
+        <button id="btnZipLookup" class="ghost">Find Territory</button>
+      </div>
+      <div id="zipLookupResult" class="lookup-result">Enter a postcode to see its postcode district, POCs, and current owner mix.</div>
+
+      <label style="margin-top:8px">Filter View by BDR</label>
+      <select id="filterBDR" multiple></select>
+
+      <label style="margin-top:8px">Workload Date Range</label>
+      <div class="grid">
+        <div class="gb-date-picker">
+          <input type="date" id="startDate" title="Start Date" aria-label="Start Date" />
+          <button type="button" class="gb-date-picker-button" data-date-target="startDate" title="Open start-date picker" aria-label="Open start-date picker">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+              <path d="M16 3v4M8 3v4M3 11h18"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="gb-date-picker">
+          <input type="date" id="endDate" title="End Date" aria-label="End Date" />
+          <button type="button" class="gb-date-picker-button" data-date-target="endDate" title="Open end-date picker" aria-label="Open end-date picker">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+              <path d="M16 3v4M8 3v4M3 11h18"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="dateRangeNote" class="small">No date range applied. Workload counts scheduled POC rows; Visit Frequency is not multiplied.</div>
+      <div id="mapModeNote" class="validation-box"><b>Map mode:</b> postcode district polygons are the territory view. POC locations are optional.</div>
+      <label class="map-layer-toggle"><input id="showPocDots" type="checkbox" /> Show POC location dots</label>
+      <div id="qcBox" class="validation-box">Load shapes and data to run QC.</div>
+
+      <div class="grid" style="margin-top:8px">
+        <button id="btnApplyFilters" class="primary">Apply Filter</button>
+        <button id="btnClearFilter" class="ghost">Reset Filter</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Selection & Assignment</label>
+
+      <div class="grid" style="margin-bottom:8px">
+        <button id="btnUndo" class="ghost" disabled>↩ Undo</button>
+        <button id="btnRedo" class="ghost" disabled>↪ Redo</button>
+      </div>
+
+      <div class="grid">
+        <button id="btnSelectRect" class="ghost">Rectangle</button>
+        <button id="btnSelectLasso" class="ghost">Lasso</button>
+      </div>
+
+      <div class="grid" style="margin-top:6px">
+        <button id="btnSelectAll" class="ghost">Select All Filtered</button>
+        <button id="btnClearSel" class="ghost">Clear Selection</button>
+      </div>
+
+      <select id="bdrSelect" style="margin-top:8px">
+        <option value="">Select existing BDR</option>
+      </select>
+
+      <input id="bdrInput" placeholder="or type new BDR name" style="margin-top:6px" />
+
+      <div class="grid" style="margin-top:6px">
+        <button id="btnAssign" class="primary">Assign Selected</button>
+        <button id="btnClearAssign" class="ghost">Clear Selected Assignment</button>
+      </div>
+
+      <div class="small"><span id="selectionCount">0</span> selected</div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="card">
+      <label>Auto Fill Gaps</label>
+      <button id="btnAutoFill" class="action">Fill Unassigned Gaps</button>
+      
+    </div>
+
+    <div class="card">
+      <label>Workload Summary</label>
+
+      <!-- NEW: Time display + field day controls -->
+      <div class="grid">
+        <div>
+          <label>Time Display (Visit &amp; Travel)</label>
+          <select id="timeUnit">
+            <option value="hours" selected>Hours (e.g. 4.5 h)</option>
+            <option value="minutes">Minutes (e.g. 270 min)</option>
+            <option value="both">Hours + minutes (e.g. 4h 30m)</option>
+          </select>
+        </div>
+        <div>
+          <label>Selected Field Days</label>
+          <input id="fieldDays" type="number" min="1" value="20" placeholder="20" />
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:6px">
+        <div>
+          <label>Target Visits / BDR / Day</label>
+          <input id="targetVisitsDay" type="number" min="1" step="0.5" value="8" placeholder="8" />
+        </div>
+        <div>
+          <label>Visit Minutes / POC Override</label>
+          <input id="visitMinutes" type="number" min="1" step="1" value="" placeholder="Use data" />
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:6px">
+        <div>
+          <label>Travel Calculation</label>
+          <select id="travelMode">
+            <option value="distance" selected>Distance-based from data + speed</option>
+            <option value="fixed">Fixed minutes per POC</option>
+          </select>
+        </div>
+        <div>
+          <label>Average Travel Speed (km/h)</label>
+          <input id="travelSpeed" type="number" min="1" step="5" value="50" placeholder="50" />
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:6px">
+        <div>
+          <label>Travel Minutes / POC (fixed mode)</label>
+          <input id="travelMinutes" type="number" min="0" step="5" value="10" placeholder="10" />
+        </div>
+      </div>
+
+      <div class="small" style="margin-top:6px">
+        <label style="display:flex;gap:6px;align-items:center;font-weight:600;color:#cbd5e1">
+          <input id="autoSyncFieldDays" type="checkbox" checked style="width:auto" />
+          Auto-calculate selected field days from date range
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;font-weight:600;color:#cbd5e1;margin-top:4px">
+          <input id="includeHomeRows" type="checkbox" style="width:auto" />
+          Include HOME rows as workload visits
+        </label>
+      </div>
+
+      
+      <!-- Power BI workload settings are injected by v16 patch. -->
+
+      <!-- NEW: KPI cards -->
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card"><div class="kpi-label">Count of POC</div><div class="kpi-value" id="kpiPocs">0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Required Visits / Day</div><div class="kpi-value" id="kpiVisitsDay">0.0</div></div>
+        <div class="kpi-card"><div class="kpi-label">BDRs Needed @ Target</div><div class="kpi-value" id="kpiBdrsNeeded">0.0</div></div>
+        <div class="kpi-card"><div class="kpi-label">Direct RTM</div><div class="kpi-value" id="kpiDirect">0%</div></div>
+        <div class="kpi-card"><div class="kpi-label">Indirect RTM</div><div class="kpi-value" id="kpiIndirect">0%</div></div>
+      </div>
+      <div id="recommendationBox" class="recommendation-box">Load data to generate productivity recommendations.</div>
+<button id="btnDownloadWorkload" class="action" style="margin-top:8px">Download Workload Excel</button>
+
+      <!-- Enhanced workload table (replaces original simple table) -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Territory</th>
+              <th>POCs</th>
+              <th>Unique ZIPs</th>
+              <th>Distance / Span</th>
+              <th>Visit Time</th>
+              <th>Travel Time</th>
+              <th>Field Days</th>
+              <th>Workload %</th>
+              <th>Top Drivers</th>
+            </tr>
+          </thead>
+          <tbody id="statsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NEW: Section 6 — Visits/Day KPI Recommendation -->
+    <div class="card">
+      <label>Visits/Day KPI Recommendation</label>
+      
+      <div class="grid" style="margin-bottom:6px">
+        <div>
+          <label>Group by</label>
+          <select id="visitsKpiGroupBy">
+            <option value="total">Total Channel</option>
+            <option value="M2">Per M2 Territory</option>
+            <option value="M1">Per M1 Territory</option>
+          </select>
+        </div>
+        <div>
+          <label>Planning Minutes / Visit</label>
+          <input id="kpiPlanningVisitMinutes" type="number" min="5" step="5" value="30" />
+        </div>
+      </div>
+      <div class="grid" style="margin-bottom:6px">
+        <div>
+          <label>Maximum KPI Visits / Day</label>
+          <input id="kpiMaxVisitsDay" type="number" min="1" step="0.5" value="8" />
+        </div>
+        <button id="btnCalcVisitsKpi" class="action" style="align-self:flex-end">Calculate</button>
+      </div>
+      <div id="visitsKpiResult" class="recommendation-box" style="max-height:230px;overflow:auto">Click Calculate to generate visits/day recommendations.</div>
+    </div>
+
+    <!-- NEW: Section 7 — Territory Optimisation Advisor -->
+    <div class="card">
+      <label>Territory Optimisation Advisor</label>
+      
+      <div class="grid" style="margin-bottom:6px">
+        <div>
+          <label>Rebalance Factor</label>
+          <select id="optimFactor">
+            <option value="workload">Workload Split</option>
+            <option value="rtm">RTM Changes (Indirect→Direct)</option>
+            <option value="blueprint">Blueprint / POC Growth</option>
+          </select>
+        </div>
+        <div>
+          <label>Workload Threshold %</label>
+          <input type="number" id="optimThreshold" value="80" min="10" max="200" />
+        </div>
+      </div>
+      <button id="btnOptimise" class="action">Generate Recommendation</button>
+      <div id="optimResult" class="recommendation-box" style="max-height:240px;overflow:auto;margin-top:8px">Click Generate Recommendation to analyse territory balance.</div>
+    </div>
+
+  
+    </section>
+
+    <section id="page-simulator" class="page">
+      <div class="card">
+        <div class="module-title">Scenario Simulator</div>
+        <div class="small">Automatically reduce or redesign M1/BDR territories while preserving every POC and controlling workload impact. Works from the currently loaded UK OnTrade Excel and the current map assignments.</div>
+        <div class="grid" style="margin-top:8px">
+          <div>
+            <label>Target BDR / M1 Count</label>
+            <input id="simTargetBDRs" type="number" min="1" value="13" />
+          </div>
+          <div>
+            <label>Optimization Mode</label>
+            <select id="simMode">
+              <option value="balanced">Balanced workload + geography</option>
+              <option value="relationship">Protect relationships / knowledge</option>
+              <option value="travel">Minimize travel / distance</option>
+              <option value="potential">Prioritize market opportunity</option>
+              <option value="rtm">Respect RTM / Direct-Indirect mix</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid" style="margin-top:6px">
+          <div>
+            <label>Max Workload Increase %</label>
+            <input id="simMaxIncrease" type="number" min="0" max="200" value="15" />
+          </div>
+          <div>
+            <label>Growth / Blueprint Uplift %</label>
+            <input id="simGrowth" type="number" min="0" max="100" value="8" />
+          </div>
+        </div>
+        <div class="grid" style="margin-top:6px">
+          <div>
+            <label>Max Transfer Radius from Source Centroid (km)</label>
+            <input id="simMaxTransferKm" type="number" min="5" max="250" value="65" />
+          </div>
+          <div>
+            <label>Max Receiving Territories per Removed BDR</label>
+            <input id="simMaxReceivers" type="number" min="1" max="5" value="2" />
+          </div>
+        </div>
+        <div class="small" style="margin-top:4px">Geo-compact guard: a removed BDR is absorbed by the nearest feasible territory centroids only, so one BDR is not sent across the UK.</div>
+        <label style="margin-top:8px">Protect BDRs / M1 territories from disruption</label>
+        <select id="simProtected" multiple></select>
+        <div class="small">Use this for high-relationship territories, strategic accounts, or BDRs with unique local knowledge.</div>
+        <div class="grid" style="margin-top:8px">
+          <button id="btnSimRun" class="primary">Run Auto Scenario</button>
+          <button id="btnSimReset" class="ghost">Restore AS IS</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <label>Manual Real-world Scenario Builder</label>
+        <div class="grid">
+          <div>
+            <label>Merge / move from</label>
+            <select id="simManualFrom"></select>
+          </div>
+          <div>
+            <label>Merge / move into</label>
+            <select id="simManualTo"></select>
+          </div>
+        </div>
+        <div class="grid" style="margin-top:6px">
+          <button id="btnSimManual" class="action">Preview Manual Merge</button>
+          <button id="btnSimApply" class="primary" disabled>Apply Scenario to Map</button>
+        </div>
+        <div class="small">Applying a scenario updates the loaded in-browser dataset and the map; it never edits your source Excel file.</div>
+      </div>
+
+      <div class="card">
+        <label>Scenario Output</label>
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-label">AS IS BDRs</div><div class="kpi-value" id="simKpiCurrent">0</div></div>
+          <div class="kpi-card"><div class="kpi-label">Target BDRs</div><div class="kpi-value" id="simKpiTarget">13</div></div>
+          <div class="kpi-card"><div class="kpi-label">POC Preservation</div><div class="kpi-value" id="simKpiPoc">100%</div></div>
+          <div class="kpi-card"><div class="kpi-label">Moved ZIP Areas</div><div class="kpi-value" id="simKpiMoved">0</div></div>
+          <div class="kpi-card"><div class="kpi-label">Max Workload After</div><div class="kpi-value" id="simKpiMaxWL">0%</div></div>
+          <div class="kpi-card"><div class="kpi-label">Explainability</div><div class="kpi-value" id="simKpiTrust">A</div></div>
+        </div>
+        <div id="simNarrative" class="recommendation-box">Load data, choose target BDR count, then run the simulator.</div>
+        <div class="table-wrap" style="max-height:300px">
+          <table class="scenario-table">
+            <thead><tr><th>Action</th><th>From</th><th>To</th><th>POCs</th><th>ZIPs</th><th>Risk</th><th>Reason</th></tr></thead>
+            <tbody id="simRows"></tbody>
+          </table>
+        </div>
+        <div class="export-grid">
+          <button id="btnSimExport" class="action">Download Scenario Excel</button>
+          <button id="btnSimCopy" class="ghost">Copy Board Summary</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <label>Scenario Guardrails</label>
+        <ul class="audit-list">
+          <li><b>POC-safe:</b> the simulator reallocates ZIP areas and preserves every visible POC row.</li>
+          <li><b>Explainable:</b> every move has a reason based on workload, distance, M2 adjacency, RTM mix and growth.</li>
+          <li><b>Controllable:</b> protect territories, choose manual merges, and apply only after preview.</li>
+          <li><b>Auditable:</b> export scenario movement log, before/after workload and model assumptions.</li>
+        </ul>
+      </div>
+    </section>
+</aside>
+
+  <main>
+    <div id="map"></div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+/* GeoBoost UK — clean postcode-polygon build
+   One active application controller; postcode polygons by default with optional POC dot overlay.
+*/
+
+const $ = id => document.getElementById(id);
+const text = v => String(v ?? '').trim();
+const esc = v => text(v)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const num = (v, fallback=0) => {
+  if(v === null || v === undefined || text(v) === '') return fallback;
+  const n = Number(String(v).replace(',','.'));
+  return Number.isFinite(n) ? n : fallback;
+};
+const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
+const round = (v,d=2) => Number((Number(v)||0).toFixed(d));
+const fmt = (v,d=1) => Number(v||0).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmt0 = v => Number(v||0).toLocaleString(undefined,{maximumFractionDigits:0});
+
+const COLORS = [
+  '#4ade80','#60a5fa','#f472b6','#f97316','#facc15','#34d399','#c084fc','#fb7185',
+  '#22d3ee','#a3e635','#f43f5e','#10b981','#8b5cf6','#fde047','#38bdf8','#f59e0b',
+  '#2dd4bf','#818cf8','#fb923c','#e879f9','#84cc16','#06b6d4','#f87171','#a78bfa'
+];
+const ownerColors = new Map();
+const DEFAULT_GEOJSON_URLS = [
+  'https://sam-abi-2900.github.io/geoboost-uk-geojson/UK.json',
+  'https://raw.githubusercontent.com/sam-abi-2900/geoboost-uk-geojson/main/UK.json',
+  'https://cdn.jsdelivr.net/gh/sam-abi-2900/geoboost-uk-geojson@main/UK.json'
+];
+function colorFor(owner){
+  owner = text(owner);
+  if(!owner || owner === 'Unassigned') return '#64748b';
+  if(!ownerColors.has(owner)) ownerColors.set(owner,COLORS[ownerColors.size % COLORS.length]);
+  return ownerColors.get(owner);
+}
+
+const state = {
+  map:null,
+  drawReady:false,
+  geo:null,
+  propKey:'',
+  layer:null,
+  shapeCodes:new Set(),
+  features:new Map(),
+  centers:new Map(),
+  rawData:[],
+  columns:[],
+  pocRecords:new Map(),
+  codeToPocs:new Map(),
+  pocAssignments:new Map(),
+  baselineAssignments:new Map(),
+  polygonAssignments:new Map(),
+  gapAssignments:new Map(),
+  baselineGapAssignments:new Map(),
+  selection:new Set(),
+  activeFilters:new Set(),
+  history:[],
+  historyPos:-1,
+  scenario:null,
+  previewPocAssignments:null,
+  pocLayer:null,
+  qc:null
+};
+window.GeoBoostState = state;
+
+function setStatus(message,type=''){
+  const el=$('status');
+  if(!el) return;
+  el.textContent=String(message);
+  el.className='status '+type;
+}
+
+function normalizeDistrict(value){
+  let s=text(value).toUpperCase();
+  if(!s) return '';
+  s=s.replace(/\s+/g,'');
+  const m=s.match(/^[A-Z]{1,2}\d{1,2}[A-Z]?/);
+  return m ? m[0] : s;
+}
+function rawDistrict(row){
+  const selected=$('colCode')?.value;
+  return row?.['GeoBoost District'] || (selected ? row?.[selected] : '') || row?.ZIP || row?.Postcode || row?.postcode || '';
+}
+function districtOf(row){ return normalizeDistrict(rawDistrict(row)); }
+function ownerFromRow(row){
+  const selected=$('colBDR')?.value;
+  return text((selected ? row?.[selected] : '') || row?.['GeoBoost M1'] || row?.['M1 Name'] || row?.BDR || row?.Owner || '');
+}
+function pocKey(row,index=0){
+  return text(row?.['GeoBoost POC Key'] || row?.['POC Number'] || row?.customer_erp_code_x || row?.customer_erp_code_y || `${row?.['POC Name']||''}|${row?.ZIP||''}|${index}`);
+}
+function m2Of(row){ return text(row?.['GeoBoost M2'] || row?.['M2 Name'] || row?.['M2 Territory Name'] || '-'); }
+function cityOf(row){ return text(row?.City || '-'); }
+function rtmOf(row){ return text(row?.['Route to Market'] || '-'); }
+function isHomeRow(row){
+  return /^home$/i.test(text(row?.['POC Number'])) || /^home$/i.test(text(row?.['POC Name'])) || /^home$/i.test(text(row?.Address));
+}
+function excelDate(raw){
+  if(raw === null || raw === undefined || text(raw)==='') return '';
+  const n=Number(raw);
+  if(Number.isFinite(n) && n>20000 && n<80000){
+    return new Date(Date.UTC(1899,11,30) + Math.floor(n)*86400000).toISOString().slice(0,10);
+  }
+  const s=text(raw);
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const d=new Date(s);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10);
+}
+function rowDate(row){ return excelDate(row?.date ?? row?.Date ?? row?.['Visit Date'] ?? row?.visit_date ?? row?.DateKey); }
+function dateRange(){
+  let start=$('startDate')?.value||'', end=$('endDate')?.value||'';
+  if(start && !end) end=start;
+  if(end && !start) start=end;
+  if(start && end && end<start) [start,end]=[end,start];
+  return {start,end};
+}
+function rowInDateRange(row){
+  const {start,end}=dateRange();
+  if(!start&&!end) return true;
+  const d=rowDate(row);
+  return !!d && (!start||d>=start) && (!end||d<=end);
+}
+function countWeekdays(start,end){
+  if(!start||!end) return 0;
+  const a=new Date(start+'T00:00:00Z'), b=new Date(end+'T00:00:00Z');
+  let n=0;
+  for(let d=new Date(a); d<=b; d.setUTCDate(d.getUTCDate()+1)){
+    const day=d.getUTCDay(); if(day!==0&&day!==6)n++;
+  }
+  return Math.max(1,n);
+}
+
+function planningVisit(row){
+  const override=num($('visitMinutes')?.value,0);
+  if(override>0) return override;
+  const cleaned=num(row?.['GeoBoost Visit Minutes'],NaN);
+  if(Number.isFinite(cleaned)&&cleaned>0) return cleaned;
+  const duration=num(row?.['Visit Duration'],0)*60;
+  return duration>0 ? duration : 6;
+}
+function sourceDistance(row){
+  const cleaned=num(row?.['GeoBoost Distance Km'],NaN);
+  if(Number.isFinite(cleaned)&&cleaned>0) return cleaned;
+  const actual=num(row?.distance_km ?? row?.['Distance km'],0);
+  return actual>0 ? actual : 0;
+}
+function planningTravel(row){
+  if($('travelMode')?.value==='fixed') return Math.max(0,num($('travelMinutes')?.value,10));
+  const speed=Math.max(1,num($('travelSpeed')?.value,50)), distance=sourceDistance(row);
+  if(distance>0) return Math.max(1,distance/speed*60);
+  const cleaned=num(row?.['GeoBoost Travel Minutes'],NaN);
+  if(Number.isFinite(cleaned)&&cleaned>0) return cleaned;
+  const actual=num(row?.travel_time_min ?? row?.['Travel Time Min'],0);
+  return actual>0 ? actual : Math.max(1,num($('travelMinutes')?.value,10));
+}
+function planningDistance(row){
+  const d=sourceDistance(row);if(d>0)return d;
+  return planningTravel(row)/60*Math.max(1,num($('travelSpeed')?.value,50));
+}
+
+function currentPocMap(){ return state.previewPocAssignments || state.pocAssignments; }
+function ownerForPoc(pk){ return text(currentPocMap().get(pk) || 'Unassigned'); }
+function ownerMix(code,map=currentPocMap()){
+  const pks=state.codeToPocs.get(code)||new Set();
+  const counts=new Map();
+  pks.forEach(pk=>{
+    const o=text(map.get(pk)||'Unassigned') || 'Unassigned';
+    counts.set(o,(counts.get(o)||0)+1);
+  });
+  const assigned=[...counts.entries()].filter(([o])=>o!=='Unassigned').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+  if(assigned.length) return [assigned[0]]; // invariant: one BDR per postcode district
+  const gap=text(state.gapAssignments.get(code)||'');
+  if(gap) return [[gap,0]];
+  if(counts.size) return [['Unassigned',[...counts.values()].reduce((a,b)=>a+b,0)]];
+  return [];
+}
+function districtOwner(code,map=currentPocMap()){
+  return ownerMix(code,map)[0]?.[0] || 'Unassigned';
+}
+function recomputePolygonAssignments(){
+  const map=new Map();
+  state.shapeCodes.forEach(code=>map.set(code,districtOwner(code)));
+  state.polygonAssignments=map;
+}
+function activeOwners(){
+  const set=new Set();
+  currentPocMap().forEach(o=>{o=text(o);if(o&&o!=='Unassigned')set.add(o);});
+  state.gapAssignments.forEach(o=>{o=text(o);if(o&&o!=='Unassigned')set.add(o);});
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+
+function featureCenter(feature){
+  const code=normalizeDistrict(feature?.properties?.[state.propKey]);
+  if(code && state.centers.has(code)) return state.centers.get(code);
+  try{
+    const c=L.geoJSON(feature).getBounds().getCenter();
+    if(code) state.centers.set(code,c);
+    return c;
+  }catch(e){ return null; }
+}
+function haversineKm(a,b){
+  if(!a||!b) return Infinity;
+  const R=6371, rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat), dLng=rad(b.lng-a.lng);
+  const x=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(Math.max(0,1-x)));
+}
+
+function mapStyle(feature){
+  const code=normalizeDistrict(feature?.properties?.[state.propKey]);
+  const owner=districtOwner(code);
+  const selected=state.selection.has(code);
+  const visible=!state.activeFilters.size || state.activeFilters.has(owner);
+  if(!visible) return {fillOpacity:0,opacity:0,weight:0};
+  return {
+    color:selected?'#ffffff':'#475569',
+    weight:selected?3.2:.7,
+    dashArray:null,
+    fillColor:colorFor(owner),
+    fillOpacity:owner==='Unassigned'?.12:.78,
+    opacity:1
+  };
+}
+function tooltipForCode(code){
+  const pocs=(state.codeToPocs.get(code)||new Set()).size;
+  const owner=districtOwner(code);
+  const gapOnly=!pocs && owner!=='Unassigned';
+  return `<b>${esc(code)}</b><br>${fmt0(pocs)} POCs<br>BDR: <b>${esc(owner)}</b>${gapOnly?'<br><span class="small">Gap filled by nearest territory</span>':''}`;
+}
+function bindFeature(feature,layer){
+  const code=normalizeDistrict(feature?.properties?.[state.propKey]);
+  layer.on('click',()=>{
+    if(!code) return;
+    if(state.activeFilters.size && !ownerMix(code).some(([o])=>state.activeFilters.has(o))) return;
+    if(state.selection.has(code)) state.selection.delete(code); else state.selection.add(code);
+    renderSelection(); restyleMap();
+  });
+  layer.bindTooltip(()=>tooltipForCode(code),{sticky:true});
+}
+function restyleMap(){
+  recomputePolygonAssignments();
+  if(state.layer){
+    state.layer.setStyle(mapStyle);
+    state.layer.eachLayer(layer=>{
+      const code=normalizeDistrict(layer.feature?.properties?.[state.propKey]);
+      try{layer.bindTooltip(()=>tooltipForCode(code),{sticky:true});}catch(e){}
+    });
+  }
+}
+
+function loadGeoJSON(geo){
+  if(!geo || !(geo.type==='FeatureCollection'||geo.type==='Feature')) throw new Error('Expected a GeoJSON FeatureCollection.');
+  state.geo=geo.type==='FeatureCollection'?geo:{type:'FeatureCollection',features:[geo]};
+  const first=state.geo.features?.[0];
+  if(!first) throw new Error('GeoJSON has no features.');
+  const props=Object.keys(first.properties||{});
+  const sel=$('propKeySelect');
+  sel.innerHTML=props.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  state.propKey=props.find(p=>/postcode|postal|district|code|name|zip/i.test(p))||props[0];
+  sel.value=state.propKey;
+  rebuildShapeLayer();
+}
+function rebuildShapeLayer(){
+  if(!state.geo||!state.map)return;
+  state.shapeCodes.clear();state.features.clear();state.centers.clear();state.selection.clear();
+  if(state.layer) state.map.removeLayer(state.layer);
+  state.layer=L.geoJSON(state.geo,{style:mapStyle,onEachFeature:bindFeature}).addTo(state.map);
+  state.geo.features.forEach(f=>{
+    const code=normalizeDistrict(f.properties?.[state.propKey]);
+    if(!code)return;
+    state.shapeCodes.add(code);
+    if(!state.features.has(code)) state.features.set(code,f);
+  });
+  const b=state.layer.getBounds(); if(b.isValid())state.map.fitBounds(b.pad(.04));
+  renderSelection();restyleMap();runQC();
+  setStatus(`Loaded ${fmt0(state.shapeCodes.size)} postcode districts (${fmt0(state.geo.features.length)} polygon features).`,'ok');
+}
+async function loadDefaultGeoJSON(){
+  let lastError=null;
+  for(const url of DEFAULT_GEOJSON_URLS){
+    try{
+      const res=await fetch(url,{cache:'no-store'});
+      if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      loadGeoJSON(await res.json());
+      setStatus(`Default UK GeoJSON loaded automatically. Loaded ${fmt0(state.shapeCodes.size)} postcode districts.`,'ok');
+      return true;
+    }catch(err){
+      lastError=err;
+    }
+  }
+  setStatus(`Default UK GeoJSON could not be loaded automatically (${lastError?.message||'unknown error'}). You can still upload GeoJSON manually.`,'err');
+  return false;
+}
+
+function dedupeHeaders(headers){
+  const seen={};
+  return (headers||[]).map((h,i)=>{
+    let x=text(h)||`Column_${i+1}`;
+    if(!seen[x]){seen[x]=1;return x;} seen[x]++; return `${x}_${seen[x]}`;
+  });
+}
+function parseDelimited(content){
+  const s=String(content||'').replace(/^\uFEFF/,'');
+  const first=s.split(/\r?\n/,1)[0]||'';
+  const delimiter=(first.match(/\t/g)||[]).length>(first.match(/,/g)||[]).length?'\t':',';
+  const rows=[];let row=[],field='',quoted=false;
+  for(let i=0;i<s.length;i++){
+    const ch=s[i];
+    if(quoted){
+      if(ch==='"'){
+        if(s[i+1]==='"'){field+='"';i++;}else quoted=false;
+      }else field+=ch;
+    }else if(ch==='"') quoted=true;
+    else if(ch===delimiter){row.push(field);field='';}
+    else if(ch==='\n'){row.push(field.replace(/\r$/,''));rows.push(row);row=[];field='';}
+    else field+=ch;
+  }
+  if(field.length||row.length){row.push(field.replace(/\r$/,''));rows.push(row);}
+  return rows.filter(r=>r.some(v=>text(v)!==''));
+}
+async function loadDataFile(file){
+  if(!file)return;
+  let rows=[];
+  if(/\.xlsx?$/i.test(file.name)){
+    if(typeof XLSX==='undefined') throw new Error('Excel parser unavailable. Use the supplied CSV or open with internet access.');
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    const headers=dedupeHeaders(aoa[0]||[]);
+    rows=aoa.slice(1).filter(a=>a.some(v=>text(v)!=='')).map(a=>Object.fromEntries(headers.map((h,i)=>[h,a[i]??''])));
+  }else{
+    const aoa=parseDelimited(await file.text());
+    const headers=dedupeHeaders(aoa[0]||[]);
+    rows=aoa.slice(1).map(a=>Object.fromEntries(headers.map((h,i)=>[h,a[i]??''])));
+  }
+  if(!rows.length) throw new Error('No data rows found.');
+  state.rawData=rows; state.columns=Object.keys(rows[0]);
+  initColumnSelectors(); buildDataIndex(true); refreshAll();
+  setStatus(`Data loaded: ${fmt0(rows.length)} rows, ${fmt0(state.pocRecords.size)} unique POCs.`,'ok');
+}
+function initColumnSelectors(){
+  const keys=state.columns;
+  for(const id of ['colCode','colBDR']) $(id).innerHTML=keys.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  $('colCode').value=keys.includes('GeoBoost District')?'GeoBoost District':(keys.find(k=>/postcode|postal|district|zip|code/i.test(k))||keys[0]);
+  $('colBDR').value=keys.includes('GeoBoost M1')?'GeoBoost M1':(keys.find(k=>/^m1 name$/i.test(k))||keys.find(k=>/bdr|representative|rep|owner|m1/i.test(k))||keys[0]);
+}
+function buildDataIndex(resetOwners=false){
+  const records=new Map(), codeToPocs=new Map();
+  const districtOwnerPocs=new Map(), districtOwnerRows=new Map();
+  state.rawData.forEach((row,index)=>{
+    const pk=pocKey(row,index), code=districtOf(row), owner=ownerFromRow(row)||'Unassigned';
+    if(!records.has(pk))records.set(pk,{key:pk,name:text(row['POC Name']||pk),zip:text(row.ZIP||row.Postcode||''),code,m2:m2Of(row),city:cityOf(row),rtm:rtmOf(row),lat:num(row.latitude ?? row.dest_lat,NaN),lng:num(row.longitude ?? row.dest_lon,NaN),rows:[]});
+    const rec=records.get(pk);rec.rows.push(index);if(!rec.code)rec.code=code;if(!rec.zip)rec.zip=text(row.ZIP||'');
+    if(!Number.isFinite(rec.lat)){const la=num(row.latitude ?? row.dest_lat,NaN);if(Number.isFinite(la))rec.lat=la;}
+    if(!Number.isFinite(rec.lng)){const lo=num(row.longitude ?? row.dest_lon,NaN);if(Number.isFinite(lo))rec.lng=lo;}
+    if(code){
+      if(!codeToPocs.has(code))codeToPocs.set(code,new Set());codeToPocs.get(code).add(pk);
+      if(!districtOwnerPocs.has(code))districtOwnerPocs.set(code,new Map());
+      if(!districtOwnerRows.has(code))districtOwnerRows.set(code,new Map());
+      const pm=districtOwnerPocs.get(code), rm=districtOwnerRows.get(code);
+      if(!pm.has(owner))pm.set(owner,new Set());pm.get(owner).add(pk);
+      rm.set(owner,(rm.get(owner)||0)+1);
+    }
+  });
+  state.pocRecords=records; state.codeToPocs=codeToPocs;
+  if(resetOwners||!state.baselineAssignments.size){
+    const districtCanonical=new Map();
+    districtOwnerPocs.forEach((owners,code)=>{
+      const rm=districtOwnerRows.get(code)||new Map();
+      const ranked=[...owners.entries()].map(([o,set])=>({o,pocs:set.size,rows:rm.get(o)||0,assigned:o!=='Unassigned'}))
+        .sort((a,b)=>b.pocs-a.pocs||b.rows-a.rows||Number(b.assigned)-Number(a.assigned)||a.o.localeCompare(b.o));
+      districtCanonical.set(code,ranked[0]?.o||'Unassigned');
+    });
+    const base=new Map();
+    records.forEach((rec,pk)=>base.set(pk,districtCanonical.get(rec.code)||'Unassigned'));
+    state.baselineAssignments=base; state.pocAssignments=new Map(base);
+    state.gapAssignments=new Map();state.baselineGapAssignments=new Map();
+    state.previewPocAssignments=null; state.scenario=null;
+    resetHistory();
+  }else{
+    const next=new Map();records.forEach((rec,pk)=>{
+      const code=rec.code, codePocs=codeToPocs.get(code)||new Set();
+      let existing='';for(const k of codePocs){const o=text(state.pocAssignments.get(k));if(o&&o!=='Unassigned'){existing=o;break;}}
+      next.set(pk,existing||state.pocAssignments.get(pk)||state.baselineAssignments.get(pk)||'Unassigned');
+    });state.pocAssignments=next;
+  }
+  enforceDistrictUniqueness(state.pocAssignments);
+  ownerColors.clear(); activeOwners().forEach(colorFor); recomputePolygonAssignments(); runQC();
+}
+function enforceDistrictUniqueness(map=state.pocAssignments){
+  state.codeToPocs.forEach((pks,code)=>{
+    const counts=new Map();pks.forEach(pk=>{const o=text(map.get(pk)||'Unassigned')||'Unassigned';counts.set(o,(counts.get(o)||0)+1);});
+    const best=[...counts.entries()].sort((a,b)=>b[1]-a[1]||Number(b[0]!=='Unassigned')-Number(a[0]!=='Unassigned')||a[0].localeCompare(b[0]))[0]?.[0]||'Unassigned';
+    pks.forEach(pk=>map.set(pk,best));
+  });
+  return map;
+}
+
+function snapshot(){ return {pocs:[...state.pocAssignments.entries()],gaps:[...state.gapAssignments.entries()]}; }
+function resetHistory(){ state.history=[snapshot()];state.historyPos=0;updateHistoryButtons(); }
+function pushHistory(){
+  if(state.historyPos<state.history.length-1)state.history=state.history.slice(0,state.historyPos+1);
+  state.history.push(snapshot());state.historyPos=state.history.length-1;updateHistoryButtons();
+}
+function restoreHistory(pos){
+  if(pos<0||pos>=state.history.length)return;
+  state.historyPos=pos;const snap=state.history[pos];state.pocAssignments=new Map(snap.pocs||[]);state.gapAssignments=new Map(snap.gaps||[]);state.previewPocAssignments=null;state.scenario=null;refreshAll();updateHistoryButtons();
+}
+function undo(){if(state.historyPos>0)restoreHistory(state.historyPos-1);}
+function redo(){if(state.historyPos<state.history.length-1)restoreHistory(state.historyPos+1);}
+function updateHistoryButtons(){if($('btnUndo'))$('btnUndo').disabled=state.historyPos<=0;if($('btnRedo'))$('btnRedo').disabled=state.historyPos>=state.history.length-1;}
+
+function refreshOwnerControls(){
+  const owners=activeOwners();
+  owners.forEach(colorFor);
+  const filter=$('filterBDR'), selected=new Set(state.activeFilters);
+  filter.innerHTML=owners.map(o=>`<option value="${esc(o)}"${selected.has(o)?' selected':''}>${esc(o)}</option>`).join('');
+  const bdr=$('bdrSelect'), old=bdr.value;
+  bdr.innerHTML='<option value="">Select existing BDR</option>'+owners.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');if(owners.includes(old))bdr.value=old;
+  for(const id of ['simManualFrom','simManualTo']){
+    const el=$(id), oldv=el.value;el.innerHTML='<option value="">Select territory</option>'+owners.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');if(owners.includes(oldv))el.value=oldv;
+  }
+  const prot=$('simProtected'), protOld=new Set([...prot.selectedOptions].map(o=>o.value));prot.innerHTML=owners.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');[...prot.options].forEach(o=>o.selected=protOld.has(o.value));
+  $('simKpiCurrent').textContent=owners.length;
+}
+function renderLegend(){
+  const owners=activeOwners();
+  $('legend').innerHTML=owners.length?owners.map(o=>`<div class="item"><span class="swatch" style="background:${colorFor(o)}"></span>${esc(o)}</div>`).join(''):'<div class="small">No assigned BDRs.</div>';
+}
+function renderSelection(){ $('selectionCount').textContent=state.selection.size; }
+function refreshAll(){
+  recomputePolygonAssignments();refreshOwnerControls();renderLegend();renderSelection();restyleMap();renderWorkload();runQC();renderScenarioState();
+updatePocDotLayer();}
+
+function clearScenarioPreview(){state.previewPocAssignments=null;state.scenario=null;$('btnSimApply').disabled=true;}
+function assignSelected(clear=false){
+  if(!state.selection.size){setStatus('Select one or more postcode districts first.','err');return;}
+  const target=clear?'Unassigned':($('bdrSelect').value||text($('bdrInput').value));
+  if(!clear&&!target){setStatus('Choose an existing BDR or type a new BDR name.','err');return;}
+  clearScenarioPreview();
+  const next=new Map(state.pocAssignments), gaps=new Map(state.gapAssignments);let changed=0,pocCount=0,gapCount=0;
+  state.selection.forEach(code=>{
+    const pks=state.codeToPocs.get(code)||new Set();
+    if(pks.size){
+      pks.forEach(pk=>{pocCount++;if(next.get(pk)!==target){next.set(pk,target);changed++;}});
+      gaps.delete(code);
+    }else{
+      gapCount++;if(clear)gaps.delete(code);else gaps.set(code,target);
+    }
+  });
+  state.pocAssignments=enforceDistrictUniqueness(next);state.gapAssignments=gaps;pushHistory();refreshAll();
+  setStatus(`${clear?'Cleared':'Assigned'} ${fmt0(state.selection.size)} postcode districts${clear?'':` to ${target}`} (${fmt0(pocCount)} POCs, ${fmt0(gapCount)} map-only gaps).`,'ok');
+}
+function selectAllFiltered(){
+  state.selection.clear();
+  state.shapeCodes.forEach(code=>{
+    const mix=ownerMix(code);if(!state.activeFilters.size||mix.some(([o])=>state.activeFilters.has(o)))state.selection.add(code);
+  });
+  renderSelection();restyleMap();setStatus(`Selected ${fmt0(state.selection.size)} filtered postcode districts.`,'ok');
+}
+function clearSelection(){state.selection.clear();renderSelection();restyleMap();}
+function applyFilters(){state.activeFilters=new Set([...$('filterBDR').selectedOptions].map(o=>o.value));restyleMap();renderWorkload();}
+function clearFilters(){state.activeFilters.clear();[...$('filterBDR').options].forEach(o=>o.selected=false);$('startDate').value='';$('endDate').value='';syncFieldDays();restyleMap();renderWorkload();}
+
+function pointInPolygon(pt,poly){
+  const x=pt.lng,y=pt.lat;let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].lng,yi=poly[i].lat,xj=poly[j].lng,yj=poly[j].lat;
+    const hit=((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi);if(hit)inside=!inside;
+  }
+  return inside;
+}
+function startDraw(type){
+  if(!state.drawReady||typeof L==='undefined'||!L.Draw){setStatus('Leaflet Draw is unavailable. Click polygons or use Select All Filtered.','err');return;}
+  const drawer=type==='rect'?new L.Draw.Rectangle(state.map,{shapeOptions:{color:'#fff',weight:2}}):new L.Draw.Polygon(state.map,{shapeOptions:{color:'#fff',weight:2},allowIntersection:false});
+  drawer.enable();setStatus(type==='rect'?'Draw a rectangle over postcode polygons.':'Draw a lasso around postcode polygons.','ok');
+}
+function handleDrawCreated(e){
+  state.selection.clear();
+  let poly=[];try{const a=e.layer.getLatLngs?.();poly=Array.isArray(a?.[0])?a[0]:[];}catch(err){}
+  const bounds=e.layer.getBounds?.();
+  state.features.forEach((feature,code)=>{
+    const mix=ownerMix(code);if(state.activeFilters.size&&!mix.some(([o])=>state.activeFilters.has(o)))return;
+    const c=featureCenter(feature);if(!c)return;
+    const inside=e.layerType==='rectangle'&&bounds?bounds.contains(c):(poly.length>=3&&pointInPolygon(c,poly));
+    if(inside)state.selection.add(code);
+  });
+  renderSelection();restyleMap();setStatus(`Selected ${fmt0(state.selection.size)} postcode districts from the drawn area.`,'ok');
+}
+
+function ownerDistrictCentroids(assignMap=state.pocAssignments){
+  const sums=new Map();
+  state.shapeCodes.forEach(code=>{
+    const owner=districtOwner(code,assignMap);if(!owner||owner==='Unassigned')return;
+    const f=state.features.get(code),c=f?featureCenter(f):null;if(!c)return;
+    if(!sums.has(owner))sums.set(owner,{lat:0,lng:0,n:0});const s=sums.get(owner);s.lat+=c.lat;s.lng+=c.lng;s.n++;
+  });
+  const out=new Map();sums.forEach((s,o)=>out.set(o,{lat:s.lat/s.n,lng:s.lng/s.n}));return out;
+}
+function autoFill(){
+  if(!state.shapeCodes.size)return setStatus('Load postcode GeoJSON first.','err');
+  if(!state.rawData.length)return setStatus('Load data first.','err');
+  const next=new Map(state.pocAssignments),gaps=new Map(state.gapAssignments);
+  enforceDistrictUniqueness(next);
+  const cent=ownerDistrictCentroids(next);if(!cent.size)return setStatus('No assigned BDR territories are available as fill anchors.','err');
+  let filledDistricts=0,filledPocs=0,filledMapOnly=0;
+  state.shapeCodes.forEach(code=>{
+    if(districtOwner(code,next)!=='Unassigned')return;
+    const f=state.features.get(code),c=f?featureCenter(f):null;if(!c)return;
+    let best='',dist=Infinity;cent.forEach((p,o)=>{const d=haversineKm(c,p);if(d<dist){dist=d;best=o;}});if(!best)return;
+    const pks=state.codeToPocs.get(code)||new Set();
+    if(pks.size){pks.forEach(pk=>{next.set(pk,best);filledPocs++;});gaps.delete(code);}else{gaps.set(code,best);filledMapOnly++;}
+    filledDistricts++;
+  });
+  state.pocAssignments=enforceDistrictUniqueness(next);state.gapAssignments=gaps;pushHistory();refreshAll();
+  setStatus(`Filled ${fmt0(filledDistricts)} unassigned postcode polygons (${fmt0(filledPocs)} POCs, ${fmt0(filledMapOnly)} map-only gaps) using nearest BDR territory centroids.`,'ok');
+}
+
+function fieldDaysForGroup(dates){
+  const r=dateRange();
+  if($('autoSyncFieldDays').checked && r.start && r.end) return countWeekdays(r.start,r.end);
+  if($('autoSyncFieldDays').checked && dates.size) return Math.max(1,dates.size);
+  return Math.max(1,Math.round(num($('fieldDays').value,20)));
+}
+function syncFieldDays(){
+  const r=dateRange();
+  if($('autoSyncFieldDays').checked && r.start&&r.end)$('fieldDays').value=countWeekdays(r.start,r.end);
+  updateDateNote();
+}
+function updateDateNote(){
+  const r=dateRange(),note=$('dateRangeNote');
+  if(!r.start&&!r.end)note.textContent='All dates. Workload uses each territory’s distinct visit dates as field days.';
+  else note.textContent=`${r.start} — ${r.end}. ${$('autoSyncFieldDays').checked?'Weekday field days are auto-calculated.':'Using manual Selected Field Days.'}`;
+}
+function formatTime(mins){
+  const mode=$('timeUnit').value, m=Number(mins||0);
+  if(mode==='minutes')return `${fmt(m,0)} min`;
+  if(mode==='both'){const h=Math.floor(m/60),mm=Math.round(m%60);return `${h}h ${mm}m`;}
+  return `${fmt(m/60,1)} h`;
+}
+function buildWorkload(assignMap=currentPocMap(),opts={}){
+  const groups=new Map();
+  state.rawData.forEach((row,index)=>{
+    if(isHomeRow(row)&&!$('includeHomeRows').checked)return;
+    if(!opts.ignoreDate&&!rowInDateRange(row))return;
+    const pk=pocKey(row,index),owner=text(assignMap.get(pk)||'Unassigned');
+    if(!owner||owner==='Unassigned')return;
+    if(!opts.ignoreFilters&&state.activeFilters.size&&!state.activeFilters.has(owner))return;
+    if(!groups.has(owner))groups.set(owner,{owner,pocs:new Set(),codes:new Set(),dates:new Set(),m2:new Map(),city:new Map(),direct:new Set(),indirect:new Set(),rows:0,visit:0,travel:0,distance:0});
+    const g=groups.get(owner),rec=state.pocRecords.get(pk),d=rowDate(row),code=districtOf(row);g.pocs.add(pk);if(code)g.codes.add(code);if(d)g.dates.add(d);g.rows++;g.visit+=planningVisit(row);g.travel+=planningTravel(row);g.distance+=planningDistance(row);
+    const m2=m2Of(row);g.m2.set(m2,(g.m2.get(m2)||0)+1);const city=cityOf(row);g.city.set(city,(g.city.get(city)||0)+1);const r=rtmOf(row).toLowerCase();if(r==='direct')g.direct.add(pk);else if(r.includes('indirect'))g.indirect.add(pk);
+  });
+  const top=m=>[...m.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'-';
+  return [...groups.values()].map(g=>{
+    const days=fieldDaysForGroup(g.dates),capacity=days*480,demand=g.visit+g.travel;
+    const travelShare=demand?g.travel/demand*100:0;
+    return {BDR:g.owner,TopM2:top(g.m2),TopCity:top(g.city),POCs:g.pocs.size,UniqueZIPs:g.codes.size,VisitRows:g.rows,VisitTimeMin:round(g.visit,2),TravelTimeMin:round(g.travel,2),DistanceKm:round(g.distance,2),FieldDays:days,CapacityMinutes:capacity,WorkloadPercent:round(capacity?demand/capacity*100:0,2),Direct:g.direct.size,Indirect:g.indirect.size,TravelShare:travelShare,PostalCodes:[...g.codes].sort().join(', ')};
+  }).sort((a,b)=>a.BDR.localeCompare(b.BDR));
+}
+function renderWorkload(){
+  if(!state.rawData.length){$('statsBody').innerHTML='';return[];}
+  const rows=buildWorkload();
+  $('statsBody').innerHTML=rows.map(r=>{
+    const driver=`${esc(r.TopCity)} · ${esc(r.TopM2)} · travel ${fmt(r.TravelShare,0)}%`;
+    return `<tr><td><b>${esc(r.BDR)}</b></td><td>${fmt0(r.POCs)}</td><td>${fmt0(r.UniqueZIPs)}</td><td class="distance-cell"><b>${fmt(r.DistanceKm,1)} km</b></td><td>${formatTime(r.VisitTimeMin)}</td><td>${formatTime(r.TravelTimeMin)}</td><td>${fmt0(r.FieldDays)}</td><td><b>${r.WorkloadPercent.toFixed(2)}%</b></td><td><div class="driver-line">${driver}</div></td></tr>`;
+  }).join('')||'<tr><td colspan="9">No workload rows for the current filters/date range.</td></tr>';
+  renderKPIs(rows);return rows;
+}
+function renderKPIs(rows){
+  const pocs=new Set(),direct=new Set(),indirect=new Set(),dates=new Set();let visits=0;
+  state.rawData.forEach((row,index)=>{
+    if(isHomeRow(row)&&!$('includeHomeRows').checked)return;if(!rowInDateRange(row))return;
+    const pk=pocKey(row,index),owner=ownerForPoc(pk);if(!owner||owner==='Unassigned')return;if(state.activeFilters.size&&!state.activeFilters.has(owner))return;
+    pocs.add(pk);visits++;const d=rowDate(row);if(d)dates.add(d);const r=rtmOf(row).toLowerCase();if(r==='direct')direct.add(pk);else if(r.includes('indirect'))indirect.add(pk);
+  });
+  const r=dateRange();let days=$('autoSyncFieldDays').checked?(r.start&&r.end?countWeekdays(r.start,r.end):Math.max(1,dates.size)):Math.max(1,num($('fieldDays').value,20));
+  const visitsDay=visits/days,target=Math.max(.1,num($('targetVisitsDay').value,8)),needed=visitsDay/target,den=Math.max(1,direct.size+indirect.size);
+  $('kpiPocs').textContent=fmt0(pocs.size);$('kpiVisitsDay').textContent=fmt(visitsDay,1);$('kpiBdrsNeeded').textContent=fmt(needed,1);$('kpiDirect').textContent=`${fmt(direct.size/den*100,0)}%`;$('kpiIndirect').textContent=`${fmt(indirect.size/den*100,0)}%`;
+  const rec=$('recommendationBox');if(!rows.length)rec.textContent='No workload rows for the current view.';else{const max=[...rows].sort((a,b)=>b.WorkloadPercent-a.WorkloadPercent)[0],min=[...rows].sort((a,b)=>a.WorkloadPercent-b.WorkloadPercent)[0];rec.innerHTML=`Highest workload: <b>${esc(max.BDR)} ${max.WorkloadPercent.toFixed(1)}%</b>. Lowest: <b>${esc(min.BDR)} ${min.WorkloadPercent.toFixed(1)}%</b>. ${max.WorkloadPercent>100?'Review territory redistribution or capacity.':max.WorkloadPercent>80?'Capacity is getting tight in the highest territory.':'No territory exceeds 80% in this view.'}`;}
+}
+
+function calculateVisitsKPI(){
+  const rows=buildWorkload(),groupBy=$('visitsKpiGroupBy').value,planning=Math.max(5,num($('kpiPlanningVisitMinutes').value,30)),maxKpi=Math.max(1,num($('kpiMaxVisitsDay').value,8));
+  const groups=new Map();
+  rows.forEach(r=>{const key=groupBy==='total'?'Total Channel':groupBy==='M2'?r.TopM2:r.BDR;if(!groups.has(key))groups.set(key,{pocs:0,rows:0,days:0,travel:0,m1:new Set(),work:0});const g=groups.get(key);g.pocs+=r.POCs;g.rows+=r.VisitRows;g.days+=r.FieldDays;g.travel+=r.TravelTimeMin;g.m1.add(r.BDR);g.work=Math.max(g.work,r.WorkloadPercent);});
+  const lines=[...groups.entries()].map(([k,g])=>{const actual=g.rows/Math.max(1,g.days),travelPerVisit=g.rows?g.travel/g.rows:0,recommended=Math.min(maxKpi,480/Math.max(1,planning+travelPerVisit));return `<tr><td>${esc(k)}</td><td>${g.m1.size}</td><td>${fmt0(g.pocs)}</td><td>${fmt(actual,1)}</td><td><b>${fmt(recommended,1)}</b></td><td>${fmt(g.work,1)}%</td></tr>`;}).join('');
+  $('visitsKpiResult').innerHTML=`<table style="width:100%;font-size:10px"><thead><tr><th>Group</th><th>M1s</th><th>POCs</th><th>Actual/day</th><th>Recommended/day</th><th>Workload</th></tr></thead><tbody>${lines||'<tr><td colspan="6">No data.</td></tr>'}</tbody></table>`;
+}
+function optimiseAdvisor(){
+  const rows=buildWorkload(),factor=$('optimFactor').value,threshold=Math.max(10,num($('optimThreshold').value,80));if(!rows.length){$('optimResult').textContent='No workload rows.';return;}
+  let html='';
+  if(factor==='workload'){
+    const sorted=[...rows].sort((a,b)=>b.WorkloadPercent-a.WorkloadPercent);html=sorted.map(r=>`<div class="mini-card"><b>${esc(r.BDR)}</b> · ${r.WorkloadPercent.toFixed(1)}% · ${r.WorkloadPercent>threshold?'Review transfer/split':r.WorkloadPercent<threshold*.55?'Can absorb nearby postcode districts':'Balanced'}</div>`).join('');
+  }else if(factor==='rtm'){
+    html=rows.map(r=>{const den=r.Direct+r.Indirect,ind=den?r.Indirect/den*100:0;return `<div class="mini-card"><b>${esc(r.BDR)}</b> · Indirect ${fmt(ind,0)}% · ${ind>50?'Review Direct conversion opportunity':'RTM mix acceptable'}</div>`;}).join('');
+  }else{
+    const avg=rows.reduce((s,r)=>s+r.POCs,0)/rows.length;html=rows.map(r=>{const idx=avg?r.POCs/avg*100:0;return `<div class="mini-card"><b>${esc(r.BDR)}</b> · ${fmt0(r.POCs)} POCs · index ${fmt(idx,0)} · ${idx>130?'Potential split':idx<70?'Capacity for growth':'Balanced'}</div>`;}).join('');
+  }
+  $('optimResult').innerHTML=html;
+}
+
+function updateLookup(){
+  const raw=text($('zipLookup').value);if(!raw){$('zipLookupResult').textContent='Enter a postcode to see its current postcode district and ownership.';return;}
+  const normalized=raw.toUpperCase().replace(/\s+/g,'');let code=normalizeDistrict(raw),pks=[];
+  state.pocRecords.forEach(rec=>{if(rec.zip.toUpperCase().replace(/\s+/g,'')===normalized)pks.push(rec.key);});
+  if(!pks.length)pks=[...(state.codeToPocs.get(code)||[])];else code=state.pocRecords.get(pks[0])?.code||code;
+  if(!pks.length){$('zipLookupResult').innerHTML=`<b>${esc(raw)}</b><br>No matching loaded POC or postcode district.`;return;}
+  const counts=new Map();pks.forEach(pk=>{const o=ownerForPoc(pk);counts.set(o,(counts.get(o)||0)+1);});const mix=[...counts.entries()].sort((a,b)=>b[1]-a[1]);const ex=state.pocRecords.get(pks[0]);
+  $('zipLookupResult').innerHTML=`<b>${esc(raw)}</b> → <b>${esc(code)}</b><br>${fmt0(pks.length)} POCs<br>${mix.map(([o,c])=>`${esc(o)}: ${fmt0(c)}`).join('<br>')}<br>Example: ${esc(ex?.name||'-')} · ${esc(ex?.m2||'-')}`;
+  const f=state.features.get(code);if(f){try{state.map.fitBounds(L.geoJSON(f).getBounds().pad(.8));}catch(e){}}
+}
+
+function ownerMetrics(assignMap){
+  const rows=buildWorkload(assignMap,{ignoreFilters:true}),rowByOwner=new Map(rows.map(r=>[r.BDR,r])),cent=ownerDistrictCentroids(assignMap),groups=new Map();
+  assignMap.forEach((o,pk)=>{o=text(o);if(!o||o==='Unassigned')return;if(!groups.has(o))groups.set(o,{owner:o,pocs:[],workload:rowByOwner.get(o)?.WorkloadPercent||0,center:cent.get(o)||null,m2:new Map(),rtm:new Map()});const g=groups.get(o),rec=state.pocRecords.get(pk);g.pocs.push(pk);if(rec){g.m2.set(rec.m2,(g.m2.get(rec.m2)||0)+1);g.rtm.set(rec.rtm,(g.rtm.get(rec.rtm)||0)+1);}});
+  groups.forEach(g=>{g.topM2=[...g.m2.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0]||'-';});return groups;
+}
+function buildScenario({manualFrom='',manualTo=''}={}){
+  const base=new Map(state.pocAssignments),metrics=ownerMetrics(base),current=metrics.size;if(!current)throw new Error('Load data first.');
+  const protectedOwners=new Set([...$('simProtected').selectedOptions].map(o=>o.value));
+  const maxKm=Math.max(5,num($('simMaxTransferKm').value,65)),maxReceivers=clamp(Math.round(num($('simMaxReceivers').value,2)),1,5),mode=$('simMode').value,growth=Math.max(0,num($('simGrowth').value,8)),maxIncrease=Math.max(0,num($('simMaxIncrease').value,15));
+  let removed=[];
+  if(manualFrom){if(!manualTo||manualFrom===manualTo)throw new Error('Choose different From and To territories.');removed=[manualFrom];}
+  else{
+    const target=clamp(Math.round(num($('simTargetBDRs').value,current)),1,current);const removeCount=current-target;
+    removed=[...metrics.values()].filter(g=>!protectedOwners.has(g.owner)).sort((a,b)=>a.workload-b.workload||a.pocs.length-b.pocs.length).slice(0,removeCount).map(g=>g.owner);
+    if(removed.length<removeCount)throw new Error('Too many territories are protected for the requested target.');
+  }
+  const removedSet=new Set(removed),remaining=[...metrics.values()].filter(g=>!removedSet.has(g.owner));if(!remaining.length)throw new Error('Scenario needs at least one receiving territory.');
+  const next=new Map(base),moves=[];
+  for(const from of removed){
+    const src=metrics.get(from);if(!src)continue;
+    let candidates=manualFrom?remaining.filter(g=>g.owner===manualTo):remaining.slice().sort((a,b)=>haversineKm(src.center,a.center)-haversineKm(src.center,b.center)).slice(0,maxReceivers);
+    if(!candidates.length)throw new Error(`No receiver found for ${from}.`);
+    const sourceCodes=[...new Set(src.pocs.map(pk=>state.pocRecords.get(pk)?.code).filter(Boolean))];
+    for(const code of sourceCodes){
+      const districtPks=[...(state.codeToPocs.get(code)||new Set())].filter(pk=>next.get(pk)===from);
+      if(!districtPks.length)continue;
+      const rec=state.pocRecords.get(districtPks[0]),f=state.features.get(code),c=f?featureCenter(f):src.center;let best=null,bestScore=Infinity,bestDist=Infinity;
+      for(const dst of candidates){
+        const d=haversineKm(c,dst.center);let score=d+dst.workload*.25;
+        if(mode==='relationship'&&rec?.m2&&rec.m2===dst.topM2)score-=20;
+        if(mode==='travel')score=d;
+        if(mode==='potential')score=d+dst.workload*.45-dst.pocs.length*.01;
+        if(mode==='rtm'){const same=rec?.rtm&&dst.rtm.has(rec.rtm);if(same)score-=12;}
+        if(d>maxKm)score+=(d-maxKm)*4;
+        if(score<bestScore){bestScore=score;best=dst;bestDist=d;}
+      }
+      if(!best)continue;
+      districtPks.forEach(pk=>{const r=state.pocRecords.get(pk);next.set(pk,best.owner);moves.push({pk,name:r?.name||pk,zip:r?.zip||'',code,from,to:best.owner,distance:round(bestDist,1),risk:bestDist>maxKm?'High':bestDist>maxKm*.75?'Medium':'Low',reason:manualFrom?'Manual district merge':`Whole-postcode-district transfer to nearest feasible receiver`});});
+    }
+  }
+  enforceDistrictUniqueness(next);
+  const afterOwners=new Set([...next.values()].filter(o=>o&&o!=='Unassigned')),left=removed.filter(o=>afterOwners.has(o));if(left.length)throw new Error('Scenario QC failed: removed owners still have POCs: '+left.join(', '));
+  const afterRows=buildWorkload(next,{ignoreFilters:true}),beforeRows=buildWorkload(base,{ignoreFilters:true});
+  const maxAfter=(afterRows.reduce((m,r)=>Math.max(m,r.WorkloadPercent),0))*(1+growth/100),maxBefore=beforeRows.reduce((m,r)=>Math.max(m,r.WorkloadPercent),0),increase=maxBefore?((maxAfter/maxBefore)-1)*100:0;
+  return {base,next,moves,removed,current,target:afterOwners.size,maxAfter,maxBefore,increase,growth,maxIncrease,guardrailBreached:increase>maxIncrease,totalBefore:base.size,totalAfter:next.size,mode};
+}
+function previewScenario(opts={}){
+  try{
+    const sc=buildScenario(opts);state.scenario=sc;state.previewPocAssignments=new Map(sc.next);refreshOwnerControls();renderLegend();restyleMap();renderWorkload();renderScenarioState();$('btnSimApply').disabled=!sc.moves.length;
+    setStatus(`Scenario preview: ${fmt0(sc.moves.length)} POCs moved; ${sc.current} → ${sc.target} active BDRs; POC preservation 100%.`,'ok');
+  }catch(e){setStatus('Scenario failed: '+e.message,'err');}
+}
+function renderScenarioState(){
+  const sc=state.scenario;
+  if(!sc){$('simKpiCurrent').textContent=activeOwners().length;$('simKpiTarget').textContent=$('simTargetBDRs').value;$('simKpiPoc').textContent='100%';$('simKpiMoved').textContent='0';$('simKpiMaxWL').textContent='0%';$('simKpiTrust').textContent='A';$('simNarrative').textContent='Load data, choose target BDR count, then run the simulator.';$('simRows').innerHTML='';return;}
+  $('simKpiCurrent').textContent=sc.current;$('simKpiTarget').textContent=sc.target;$('simKpiPoc').textContent=sc.totalBefore===sc.totalAfter?'100%':'FAIL';$('simKpiMoved').textContent=new Set(sc.moves.map(m=>m.code)).size;$('simKpiMaxWL').textContent=`${fmt(sc.maxAfter,1)}%`;$('simKpiTrust').textContent=sc.guardrailBreached?'B':'A';
+  $('simNarrative').innerHTML=`Preview preserves <b>${fmt0(sc.totalAfter)}</b> POCs and removes <b>${sc.removed.map(esc).join(', ')||'none'}</b>. Map colours are postcode polygons only. Projected max workload with ${fmt(sc.growth,0)}% uplift is <b>${fmt(sc.maxAfter,1)}%</b>${sc.guardrailBreached?` — above the configured +${fmt(sc.maxIncrease,0)}% guardrail.`:'.'}`;
+  const grouped=new Map();sc.moves.forEach(m=>{const k=m.from+'\u0001'+m.to;if(!grouped.has(k))grouped.set(k,{from:m.from,to:m.to,pocs:0,zips:new Set(),risk:'Low',d:[]});const g=grouped.get(k);g.pocs++;if(m.code)g.zips.add(m.code);g.d.push(m.distance);if(m.risk==='High')g.risk='High';else if(m.risk==='Medium'&&g.risk!=='High')g.risk='Medium';});
+  $('simRows').innerHTML=[...grouped.values()].map(g=>`<tr><td>Transfer</td><td>${esc(g.from)}</td><td>${esc(g.to)}</td><td>${fmt0(g.pocs)}</td><td>${[...g.zips].slice(0,12).map(esc).join(', ')}${g.zips.size>12?'…':''}</td><td>${g.risk}</td><td>Postcode-centroid routing; avg ${fmt(g.d.reduce((a,b)=>a+b,0)/Math.max(1,g.d.length),1)} km</td></tr>`).join('')||'<tr><td colspan="7">No moves required.</td></tr>';
+}
+function applyScenario(){
+  if(!state.scenario||!state.previewPocAssignments)return setStatus('Run a scenario preview first.','err');
+  state.pocAssignments=new Map(state.previewPocAssignments);state.previewPocAssignments=null;state.scenario=null;pushHistory();refreshAll();$('btnSimApply').disabled=true;setStatus('Scenario applied to current POC ownership and postcode polygon fills.','ok');
+}
+function restoreAsIs(){state.pocAssignments=new Map(state.baselineAssignments);state.gapAssignments=new Map(state.baselineGapAssignments);state.previewPocAssignments=null;state.scenario=null;state.activeFilters.clear();state.selection.clear();pushHistory();refreshAll();$('btnSimApply').disabled=true;setStatus('Restored uploaded AS IS ownership.','ok');}
+function exportScenario(){
+  if(!state.scenario)return setStatus('Run a scenario preview first.','err');
+  const rows=state.scenario.moves.map(m=>({'POC Key':m.pk,'POC Name':m.name,'Full Postcode':m.zip,'Postcode District':m.code,'From M1':m.from,'To M1':m.to,'District-centroid distance km':m.distance,'Risk':m.risk,'Reason':m.reason}));
+  if(!rows.length)return setStatus('Scenario has no moves to export.','err');downloadCSV(rows,'geoboost_UK_scenario.csv');setStatus(`Downloaded ${fmt0(rows.length)} scenario move rows.`,'ok');
+}
+function copyBoardSummary(){
+  if(!state.scenario)return setStatus('Run a scenario preview first.','err');const sc=state.scenario,s=`GeoBoost UK scenario ${sc.current} → ${sc.target} BDRs; ${sc.moves.length} POCs moved; POC preservation 100%; projected max workload ${sc.maxAfter.toFixed(1)}%.`;
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(s).then(()=>setStatus('Board summary copied.','ok')).catch(()=>setStatus(s,'ok'));else setStatus(s,'ok');
+}
+
+function downloadCSV(rows,filename){
+  if(!rows.length)return;const headers=Object.keys(rows[0]);const quote=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const csv=[headers.map(quote).join(','),...rows.map(r=>headers.map(h=>quote(r[h])).join(','))].join('\r\n');const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function downloadWorkload(){
+  const rows=buildWorkload();if(!rows.length)return setStatus('No workload rows to download.','err');
+  const x=rows.map(r=>({'M1 / BDR':r.BDR,'M2':r.TopM2,'POCs':r.POCs,'Unique postcode districts':r.UniqueZIPs,'Visit rows':r.VisitRows,'Distance km':r.DistanceKm,'F2F minutes':r.VisitTimeMin,'Routing minutes':r.TravelTimeMin,'Field days':r.FieldDays,'Workload %':r.WorkloadPercent,'Available minutes':r.CapacityMinutes,'Postcode districts':r.PostalCodes}));
+  if(typeof XLSX!=='undefined'){const wb=XLSX.utils.book_new(),ws=XLSX.utils.json_to_sheet(x);XLSX.utils.book_append_sheet(wb,ws,'Workload');XLSX.writeFile(wb,'geoboost_UK_workload.xlsx');}else downloadCSV(x,'geoboost_UK_workload.csv');setStatus(`Downloaded ${fmt0(rows.length)} workload rows.`,'ok');
+}
+
+
+function clearPocDots(){
+  if(state.pocLayer && state.map){try{state.map.removeLayer(state.pocLayer);}catch(e){}}
+  state.pocLayer=null;
+}
+function renderPocDots(){
+  clearPocDots();
+  const toggle=$('showPocDots');
+  if(!toggle?.checked || !state.map || typeof L==='undefined' || !state.pocRecords.size)return;
+  const group=L.layerGroup();
+  let shown=0, skipped=0;
+  state.pocRecords.forEach((rec,pk)=>{
+    const lat=Number(rec.lat),lng=Number(rec.lng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<49||lat>61.5||lng<-9||lng>3){skipped++;return;}
+    const owner=ownerForPoc(pk);
+    if(state.activeFilters.size&&!state.activeFilters.has(owner))return;
+    const marker=L.circleMarker([lat,lng],{
+      radius:3,
+      weight:1,
+      color:'#111827',
+      fillColor:colorFor(owner),
+      fillOpacity:.92,
+      opacity:.8,
+      pane:'markerPane'
+    });
+    marker.bindTooltip(`<div class="poc-dot-tooltip"><b>${esc(rec.name||pk)}</b><br>${esc(rec.zip||rec.code||'')}<br>BDR: ${esc(owner||'Unassigned')}</div>`,{sticky:true});
+    marker.addTo(group);shown++;
+  });
+  group.addTo(state.map);state.pocLayer=group;
+  const note=$('mapModeNote');
+  if(note)note.innerHTML=`<b>Map mode:</b> postcode polygons + ${fmt0(shown)} POC location dots${skipped?` (${fmt0(skipped)} invalid/missing coordinates skipped)`:''}.`;
+}
+function updatePocDotLayer(){
+  if($('showPocDots')?.checked)renderPocDots();
+  else{
+    clearPocDots();
+    const note=$('mapModeNote');if(note)note.innerHTML='<b>Map mode:</b> postcode district polygons are the territory view. POC locations are optional.';
+  }
+}
+
+function runQC(){
+  const report={rows:state.rawData.length,pocs:state.pocRecords.size,dataDistricts:state.codeToPocs.size,shapeDistricts:state.shapeCodes.size,missingOwner:0,missingDistrict:0,splitDistricts:0,unassignedPolygons:0,unmapped:[],zeroVisit:0,zeroTravel:0};
+  const unmapped=new Set();
+  state.rawData.forEach(row=>{const o=ownerFromRow(row),c=districtOf(row);if(!o)report.missingOwner++;if(!c)report.missingDistrict++;if(c&&state.shapeCodes.size&&!state.shapeCodes.has(c))unmapped.add(c);if(planningVisit(row)<=0)report.zeroVisit++;if(planningTravel(row)<=0)report.zeroTravel++;});
+  state.codeToPocs.forEach((pks,code)=>{const owners=new Set([...pks].map(pk=>text(currentPocMap().get(pk)||'Unassigned')).filter(o=>o&&o!=='Unassigned'));if(owners.size>1)report.splitDistricts++;});
+  if(state.shapeCodes.size)state.shapeCodes.forEach(code=>{if(districtOwner(code)==='Unassigned')report.unassignedPolygons++;});
+  report.unmapped=[...unmapped].sort();state.qc=report;
+  const severe=report.missingOwner+report.missingDistrict+report.zeroVisit+report.zeroTravel+report.unmapped.length+report.splitDistricts;
+  const box=$('qcBox');if(box){box.className='validation-box '+(severe?'qc-warn':'qc-good');box.innerHTML=`<b>QC ${severe?'needs review':'passed'}</b> · ${fmt0(report.rows)} rows · ${fmt0(report.pocs)} unique POCs · ${fmt0(report.dataDistricts)} data districts · ${fmt0(report.shapeDistricts)} shape districts · <b>${report.splitDistricts} split postcode districts</b> · ${report.unassignedPolygons} unassigned map polygons · ${report.missingOwner} missing owners · ${report.missingDistrict} missing districts · ${report.zeroVisit} zero planning visit values · ${report.zeroTravel} zero planning travel values${report.unmapped.length?` · unmapped: ${esc(report.unmapped.slice(0,12).join(', '))}${report.unmapped.length>12?'…':''}`:''}`;}
+  return report;
+}
+
+function switchPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('#geoBoostPageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));setTimeout(()=>state.map?.invalidateSize(),50);}
+function bindUI(){
+  $('shapeFile').addEventListener('change',async e=>{try{const f=e.target.files?.[0];if(!f)return;loadGeoJSON(JSON.parse(await f.text()));}catch(err){setStatus('GeoJSON error: '+err.message,'err');}});
+  $('propKeySelect').addEventListener('change',e=>{state.propKey=e.target.value;rebuildShapeLayer();});
+  $('bdrCsv').addEventListener('change',async e=>{try{await loadDataFile(e.target.files?.[0]);}catch(err){setStatus('Data error: '+err.message,'err');}});
+  $('colCode').addEventListener('change',()=>{if(state.rawData.length){buildDataIndex(false);refreshAll();}});
+  $('colBDR').addEventListener('change',()=>{if(state.rawData.length){buildDataIndex(true);refreshAll();}});
+  $('btnZipLookup').addEventListener('click',updateLookup);$('zipLookup').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();updateLookup();}});
+  $('btnApplyFilters').addEventListener('click',applyFilters);$('btnClearFilter').addEventListener('click',clearFilters);
+  $('showPocDots').addEventListener('change',updatePocDotLayer);
+  $('btnUndo').addEventListener('click',undo);$('btnRedo').addEventListener('click',redo);
+  $('btnSelectRect').addEventListener('click',()=>startDraw('rect'));$('btnSelectLasso').addEventListener('click',()=>startDraw('lasso'));$('btnSelectAll').addEventListener('click',selectAllFiltered);$('btnClearSel').addEventListener('click',clearSelection);$('btnAssign').addEventListener('click',()=>assignSelected(false));$('btnClearAssign').addEventListener('click',()=>assignSelected(true));$('btnAutoFill').addEventListener('click',autoFill);
+  ['startDate','endDate'].forEach(id=>$(id).addEventListener('change',()=>{syncFieldDays();renderWorkload();}));
+  ['timeUnit','fieldDays','targetVisitsDay','visitMinutes','travelMode','travelSpeed','travelMinutes','standardFieldDays','autoSyncFieldDays','includeHomeRows'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>{syncFieldDays();renderWorkload();runQC();});});
+  document.querySelectorAll('.gb-date-picker-button').forEach(btn=>btn.addEventListener('click',()=>{const x=$(btn.dataset.dateTarget);if(x?.showPicker)try{x.showPicker();}catch(e){x.focus();}else x?.focus();}));
+  $('btnDownloadWorkload').addEventListener('click',downloadWorkload);$('btnCalcVisitsKpi').addEventListener('click',calculateVisitsKPI);$('btnOptimise').addEventListener('click',optimiseAdvisor);
+  $('btnSimRun').addEventListener('click',()=>previewScenario());$('btnSimManual').addEventListener('click',()=>previewScenario({manualFrom:$('simManualFrom').value,manualTo:$('simManualTo').value}));$('btnSimApply').addEventListener('click',applyScenario);$('btnSimReset').addEventListener('click',restoreAsIs);$('btnSimExport').addEventListener('click',exportScenario);$('btnSimCopy').addEventListener('click',copyBoardSummary);
+  $('simTargetBDRs').addEventListener('change',()=>{$('simKpiTarget').textContent=$('simTargetBDRs').value;});
+  document.querySelectorAll('#geoBoostPageTabs button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
+  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}});
+}
+
+async function boot(){
+  bindUI();updateHistoryButtons();updateDateNote();
+  if(typeof L==='undefined')return setStatus('Leaflet failed to load. Check internet access and reopen the HTML.','err');
+  state.map=L.map('map',{preferCanvas:true,zoomControl:true}).setView([54.5,-3.5],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(state.map);
+  state.drawReady=!!L.Draw;
+  if(state.drawReady)state.map.on(L.Draw.Event.CREATED,handleDrawCreated);
+  setStatus('Leaflet loaded. Loading default UK GeoJSON...','ok');
+  setTimeout(()=>state.map.invalidateSize(),150);
+  await loadDefaultGeoJSON();
+}
+
+document.addEventListener('DOMContentLoaded',boot);
+
+window.GeoBoostQC = {
+  state,runQC,normalizeDistrict,buildWorkload,ownerMix,districtOwner,enforceDistrictUniqueness,autoFill,assignSelected,selectAllFiltered,handleDrawCreated,
+  previewScenario,applyScenario,restoreAsIs,refreshAll,parseDelimited,loadGeoJSON,buildDataIndex
+};
+
+</script>
+</body>
+</html>
