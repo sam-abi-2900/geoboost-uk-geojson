@@ -276,7 +276,7 @@
     flex:0 0 auto;
   }
 
-  /* ── NEW: KPI grid, lookup result, driver line, recommendation box ── */
+  /* ── KPI grid, lookup result, recommendation box ── */
   .kpi-grid{
     display:grid;
     grid-template-columns:1fr 1fr;
@@ -320,12 +320,6 @@
     color:#fff;
   }
 
-  .driver-line{
-    max-width:280px;
-    white-space:normal;
-    line-height:1.35;
-    color:#d1d5db;
-  }
 
   .recommendation-box{
     background:#101827;
@@ -529,8 +523,6 @@
 </style>
 
 <style id="gb-clean-final-style">
-  .qc-good{border-color:#166534!important;color:#bbf7d0!important;background:#052e16!important}
-  .qc-warn{border-color:#854d0e!important;color:#fde68a!important;background:#422006!important}
   .gb-mixed{font-size:9px;color:#fde68a;margin-top:3px}
   #mapModeNote{border-color:#34517f;color:#bfdbfe;background:#101827}
   #selectionCount{font-weight:800;color:#ffd166}
@@ -609,7 +601,6 @@
       <div id="dateRangeNote" class="small">No date range applied. Workload counts scheduled POC rows; Visit Frequency is not multiplied.</div>
       <div id="mapModeNote" class="validation-box"><b>Map mode:</b> postcode district polygons are the territory view. POC locations are optional.</div>
       <label class="map-layer-toggle"><input id="showPocDots" type="checkbox" /> Show POC location dots</label>
-      <div id="qcBox" class="validation-box">Load shapes and data to run QC.</div>
 
       <div class="grid" style="margin-top:8px">
         <button id="btnApplyFilters" class="primary">Apply Filter</button>
@@ -657,83 +648,7 @@
     </div>
 
     <div class="card">
-      <label>Workload Summary</label>
-
-      <!-- NEW: Time display + field day controls -->
-      <div class="grid">
-        <div>
-          <label>Time Display (Visit &amp; Travel)</label>
-          <select id="timeUnit">
-            <option value="hours" selected>Hours (e.g. 4.5 h)</option>
-            <option value="minutes">Minutes (e.g. 270 min)</option>
-            <option value="both">Hours + minutes (e.g. 4h 30m)</option>
-          </select>
-        </div>
-        <div>
-          <label>Selected Field Days</label>
-          <input id="fieldDays" type="number" min="1" value="20" placeholder="20" />
-        </div>
-      </div>
-
-      <div class="grid" style="margin-top:6px">
-        <div>
-          <label>Target Visits / BDR / Day</label>
-          <input id="targetVisitsDay" type="number" min="1" step="0.5" value="8" placeholder="8" />
-        </div>
-        <div>
-          <label>Visit Minutes / POC Override</label>
-          <input id="visitMinutes" type="number" min="1" step="1" value="" placeholder="Use data" />
-        </div>
-      </div>
-
-      <div class="grid" style="margin-top:6px">
-        <div>
-          <label>Travel Calculation</label>
-          <select id="travelMode">
-            <option value="distance" selected>Distance-based from data + speed</option>
-            <option value="fixed">Fixed minutes per POC</option>
-          </select>
-        </div>
-        <div>
-          <label>Average Travel Speed (km/h)</label>
-          <input id="travelSpeed" type="number" min="1" step="5" value="50" placeholder="50" />
-        </div>
-      </div>
-
-      <div class="grid" style="margin-top:6px">
-        <div>
-          <label>Travel Minutes / POC (fixed mode)</label>
-          <input id="travelMinutes" type="number" min="0" step="5" value="10" placeholder="10" />
-        </div>
-      </div>
-
-      <div class="small" style="margin-top:6px">
-        <label style="display:flex;gap:6px;align-items:center;font-weight:600;color:#cbd5e1">
-          <input id="autoSyncFieldDays" type="checkbox" checked style="width:auto" />
-          Auto-calculate selected field days from date range
-        </label>
-        <label style="display:flex;gap:6px;align-items:center;font-weight:600;color:#cbd5e1;margin-top:4px">
-          <input id="includeHomeRows" type="checkbox" style="width:auto" />
-          Include HOME rows as workload visits
-        </label>
-      </div>
-
-      
-      <!-- Power BI workload settings are injected by v16 patch. -->
-
-      <!-- NEW: KPI cards -->
-      <div class="kpi-grid" id="kpiGrid">
-        <div class="kpi-card"><div class="kpi-label">Count of POC</div><div class="kpi-value" id="kpiPocs">0</div></div>
-        <div class="kpi-card"><div class="kpi-label">Required Visits / Day</div><div class="kpi-value" id="kpiVisitsDay">0.0</div></div>
-        <div class="kpi-card"><div class="kpi-label">BDRs Needed @ Target</div><div class="kpi-value" id="kpiBdrsNeeded">0.0</div></div>
-        <div class="kpi-card"><div class="kpi-label">Direct RTM</div><div class="kpi-value" id="kpiDirect">0%</div></div>
-        <div class="kpi-card"><div class="kpi-label">Indirect RTM</div><div class="kpi-value" id="kpiIndirect">0%</div></div>
-      </div>
-      <div id="recommendationBox" class="recommendation-box">Load data to generate productivity recommendations.</div>
-<button id="btnDownloadWorkload" class="action" style="margin-top:8px">Download Workload Excel</button>
-
-      <!-- Enhanced workload table (replaces original simple table) -->
-      <div class="table-wrap">
+      <div class="table-wrap" style="margin-top:0">
         <table>
           <thead>
             <tr>
@@ -745,7 +660,6 @@
               <th>Travel Time</th>
               <th>Field Days</th>
               <th>Workload %</th>
-              <th>Top Drivers</th>
             </tr>
           </thead>
           <tbody id="statsBody"></tbody>
@@ -1439,22 +1353,24 @@ function autoFill(){
 
 function fieldDaysForGroup(dates){
   const r=dateRange();
-  if($('autoSyncFieldDays').checked && r.start && r.end) return countWeekdays(r.start,r.end);
-  if($('autoSyncFieldDays').checked && dates.size) return Math.max(1,dates.size);
-  return Math.max(1,Math.round(num($('fieldDays').value,20)));
+  const autoSync=$('autoSyncFieldDays')?.checked ?? true;
+  if(autoSync && r.start && r.end) return countWeekdays(r.start,r.end);
+  if(autoSync && dates.size) return Math.max(1,dates.size);
+  return Math.max(1,Math.round(num($('fieldDays')?.value,20)));
 }
 function syncFieldDays(){
-  const r=dateRange();
-  if($('autoSyncFieldDays').checked && r.start&&r.end)$('fieldDays').value=countWeekdays(r.start,r.end);
+  const r=dateRange(),autoSync=$('autoSyncFieldDays')?.checked ?? true,fieldDays=$('fieldDays');
+  if(autoSync && fieldDays && r.start&&r.end)fieldDays.value=countWeekdays(r.start,r.end);
   updateDateNote();
 }
 function updateDateNote(){
   const r=dateRange(),note=$('dateRangeNote');
+  if(!note)return;
   if(!r.start&&!r.end)note.textContent='All dates. Workload uses each territory’s distinct visit dates as field days.';
-  else note.textContent=`${r.start} — ${r.end}. ${$('autoSyncFieldDays').checked?'Weekday field days are auto-calculated.':'Using manual Selected Field Days.'}`;
+  else note.textContent=`${r.start} — ${r.end}. Weekday field days are auto-calculated.`;
 }
 function formatTime(mins){
-  const mode=$('timeUnit').value, m=Number(mins||0);
+  const mode=$('timeUnit')?.value||'hours', m=Number(mins||0);
   if(mode==='minutes')return `${fmt(m,0)} min`;
   if(mode==='both'){const h=Math.floor(m/60),mm=Math.round(m%60);return `${h}h ${mm}m`;}
   return `${fmt(m/60,1)} h`;
@@ -1462,7 +1378,8 @@ function formatTime(mins){
 function buildWorkload(assignMap=currentPocMap(),opts={}){
   const groups=new Map();
   state.rawData.forEach((row,index)=>{
-    if(isHomeRow(row)&&!$('includeHomeRows').checked)return;
+    const includeHome=$('includeHomeRows')?.checked ?? false;
+    if(isHomeRow(row)&&!includeHome)return;
     if(!opts.ignoreDate&&!rowInDateRange(row))return;
     const pk=pocKey(row,index),owner=text(assignMap.get(pk)||'Unassigned');
     if(!owner||owner==='Unassigned')return;
@@ -1481,23 +1398,10 @@ function buildWorkload(assignMap=currentPocMap(),opts={}){
 function renderWorkload(){
   if(!state.rawData.length){$('statsBody').innerHTML='';return[];}
   const rows=buildWorkload();
-  $('statsBody').innerHTML=rows.map(r=>{
-    const driver=`${esc(r.TopCity)} · ${esc(r.TopM2)} · travel ${fmt(r.TravelShare,0)}%`;
-    return `<tr><td><b>${esc(r.BDR)}</b></td><td>${fmt0(r.POCs)}</td><td>${fmt0(r.UniqueZIPs)}</td><td class="distance-cell"><b>${fmt(r.DistanceKm,1)} km</b></td><td>${formatTime(r.VisitTimeMin)}</td><td>${formatTime(r.TravelTimeMin)}</td><td>${fmt0(r.FieldDays)}</td><td><b>${r.WorkloadPercent.toFixed(2)}%</b></td><td><div class="driver-line">${driver}</div></td></tr>`;
-  }).join('')||'<tr><td colspan="9">No workload rows for the current filters/date range.</td></tr>';
-  renderKPIs(rows);return rows;
-}
-function renderKPIs(rows){
-  const pocs=new Set(),direct=new Set(),indirect=new Set(),dates=new Set();let visits=0;
-  state.rawData.forEach((row,index)=>{
-    if(isHomeRow(row)&&!$('includeHomeRows').checked)return;if(!rowInDateRange(row))return;
-    const pk=pocKey(row,index),owner=ownerForPoc(pk);if(!owner||owner==='Unassigned')return;if(state.activeFilters.size&&!state.activeFilters.has(owner))return;
-    pocs.add(pk);visits++;const d=rowDate(row);if(d)dates.add(d);const r=rtmOf(row).toLowerCase();if(r==='direct')direct.add(pk);else if(r.includes('indirect'))indirect.add(pk);
-  });
-  const r=dateRange();let days=$('autoSyncFieldDays').checked?(r.start&&r.end?countWeekdays(r.start,r.end):Math.max(1,dates.size)):Math.max(1,num($('fieldDays').value,20));
-  const visitsDay=visits/days,target=Math.max(.1,num($('targetVisitsDay').value,8)),needed=visitsDay/target,den=Math.max(1,direct.size+indirect.size);
-  $('kpiPocs').textContent=fmt0(pocs.size);$('kpiVisitsDay').textContent=fmt(visitsDay,1);$('kpiBdrsNeeded').textContent=fmt(needed,1);$('kpiDirect').textContent=`${fmt(direct.size/den*100,0)}%`;$('kpiIndirect').textContent=`${fmt(indirect.size/den*100,0)}%`;
-  const rec=$('recommendationBox');if(!rows.length)rec.textContent='No workload rows for the current view.';else{const max=[...rows].sort((a,b)=>b.WorkloadPercent-a.WorkloadPercent)[0],min=[...rows].sort((a,b)=>a.WorkloadPercent-b.WorkloadPercent)[0];rec.innerHTML=`Highest workload: <b>${esc(max.BDR)} ${max.WorkloadPercent.toFixed(1)}%</b>. Lowest: <b>${esc(min.BDR)} ${min.WorkloadPercent.toFixed(1)}%</b>. ${max.WorkloadPercent>100?'Review territory redistribution or capacity.':max.WorkloadPercent>80?'Capacity is getting tight in the highest territory.':'No territory exceeds 80% in this view.'}`;}
+  $('statsBody').innerHTML=rows.map(r=>
+    `<tr><td><b>${esc(r.BDR)}</b></td><td>${fmt0(r.POCs)}</td><td>${fmt0(r.UniqueZIPs)}</td><td class="distance-cell"><b>${fmt(r.DistanceKm,1)} km</b></td><td>${formatTime(r.VisitTimeMin)}</td><td>${formatTime(r.TravelTimeMin)}</td><td>${fmt0(r.FieldDays)}</td><td><b>${r.WorkloadPercent.toFixed(2)}%</b></td></tr>`
+  ).join('')||'<tr><td colspan="8">No workload rows for the current filters/date range.</td></tr>';
+  return rows;
 }
 
 function calculateVisitsKPI(){
@@ -1662,8 +1566,6 @@ function runQC(){
   state.codeToPocs.forEach((pks,code)=>{const owners=new Set([...pks].map(pk=>text(currentPocMap().get(pk)||'Unassigned')).filter(o=>o&&o!=='Unassigned'));if(owners.size>1)report.splitDistricts++;});
   if(state.shapeCodes.size)state.shapeCodes.forEach(code=>{if(districtOwner(code)==='Unassigned')report.unassignedPolygons++;});
   report.unmapped=[...unmapped].sort();state.qc=report;
-  const severe=report.missingOwner+report.missingDistrict+report.zeroVisit+report.zeroTravel+report.unmapped.length+report.splitDistricts;
-  const box=$('qcBox');if(box){box.className='validation-box '+(severe?'qc-warn':'qc-good');box.innerHTML=`<b>QC ${severe?'needs review':'passed'}</b> · ${fmt0(report.rows)} rows · ${fmt0(report.pocs)} unique POCs · ${fmt0(report.dataDistricts)} data districts · ${fmt0(report.shapeDistricts)} shape districts · <b>${report.splitDistricts} split postcode districts</b> · ${report.unassignedPolygons} unassigned map polygons · ${report.missingOwner} missing owners · ${report.missingDistrict} missing districts · ${report.zeroVisit} zero planning visit values · ${report.zeroTravel} zero planning travel values${report.unmapped.length?` · unmapped: ${esc(report.unmapped.slice(0,12).join(', '))}${report.unmapped.length>12?'…':''}`:''}`;}
   return report;
 }
 
@@ -1682,7 +1584,7 @@ function bindUI(){
   ['startDate','endDate'].forEach(id=>$(id).addEventListener('change',()=>{syncFieldDays();renderWorkload();}));
   ['timeUnit','fieldDays','targetVisitsDay','visitMinutes','travelMode','travelSpeed','travelMinutes','standardFieldDays','autoSyncFieldDays','includeHomeRows'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>{syncFieldDays();renderWorkload();runQC();});});
   document.querySelectorAll('.gb-date-picker-button').forEach(btn=>btn.addEventListener('click',()=>{const x=$(btn.dataset.dateTarget);if(x?.showPicker)try{x.showPicker();}catch(e){x.focus();}else x?.focus();}));
-  $('btnDownloadWorkload').addEventListener('click',downloadWorkload);$('btnCalcVisitsKpi').addEventListener('click',calculateVisitsKPI);$('btnOptimise').addEventListener('click',optimiseAdvisor);
+  $('btnCalcVisitsKpi').addEventListener('click',calculateVisitsKPI);$('btnOptimise').addEventListener('click',optimiseAdvisor);
   $('btnSimRun').addEventListener('click',()=>previewScenario());$('btnSimManual').addEventListener('click',()=>previewScenario({manualFrom:$('simManualFrom').value,manualTo:$('simManualTo').value}));$('btnSimApply').addEventListener('click',applyScenario);$('btnSimReset').addEventListener('click',restoreAsIs);$('btnSimExport').addEventListener('click',exportScenario);$('btnSimCopy').addEventListener('click',copyBoardSummary);
   $('simTargetBDRs').addEventListener('change',()=>{$('simKpiTarget').textContent=$('simTargetBDRs').value;});
   document.querySelectorAll('#geoBoostPageTabs button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
